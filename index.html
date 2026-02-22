@@ -1,0 +1,3543 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>迷霧酒館・模組化版本</title>
+<link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Uncial+Antiqua&family=Noto+Serif+TC:wght@300;400;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ─────────────────────────────── */
+:root{
+  --ink:       #0c0a08;
+  --parch:     #f5ead6;
+  --parch-dim: #d4c4a0;
+  --ember:     #c8622a;
+  --ember-glow:#f5a050;
+  --gold:      #c9943a;
+  --gold-lt:   #e8c070;
+  --gold-dk:   #7a5820;
+  --wax:       #8b1c1c;
+  --wax-lt:    #c0392b;
+  --jade:      #1a4a38;
+  --jade-lt:   #2e8b57;
+  --smoke:     #2a2218;
+  --smoke-lt:  #3d3326;
+  --leather:   #4a3220;
+  --leather-lt:#6b4c30;
+  --rune-blue: #1e3a5a;
+  --rune-lt:   #4a8ab0;
+  --r:4px; --r-lg:10px; --r-xl:16px;
+}
+
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+  -webkit-tap-highlight-color:transparent;
+  /* ⚡ 手機優化：防止長按彈出選單，避免干擾拖拽 */
+  -webkit-touch-callout: none; 
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body{
+  font-family:'Noto Serif TC',serif;
+  background:var(--ink);
+  color:var(--parch);
+  min-height:100svh;
+  overflow:hidden;
+  position:relative;
+}
+.bg-canvas{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 55% 70% at 30% 100%, rgba(200,98,42,.18) 0%,transparent 60%),
+    radial-gradient(ellipse 40% 50% at 80% 90%,  rgba(200,98,42,.10) 0%,transparent 55%),
+    radial-gradient(ellipse 80% 80% at 50% 50%,  #1a1208 0%,#0c0a08 100%);
+  animation:bgBreath 8s ease-in-out infinite alternate;
+}
+@keyframes bgBreath{from{filter:brightness(1)}to{filter:brightness(1.08)}}
+.vignette{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 90% 90% at 50% 50%,transparent 40%,rgba(0,0,0,.75) 100%);
+  animation:flicker 0.15s steps(1) infinite;
+}
+@keyframes flicker{
+  0%{opacity:.9}8%{opacity:.92}16%{opacity:.88}24%{opacity:.91}32%{opacity:.93}
+  50%{opacity:.89}64%{opacity:.92}80%{opacity:.90}100%{opacity:.91}
+}
+.mote{
+  position:fixed;border-radius:50%;pointer-events:none;z-index:0;
+  background:radial-gradient(circle,rgba(200,98,42,.55) 0%,transparent 70%);
+  animation:moteFloat linear infinite;
+}
+@keyframes moteFloat{
+  0%{transform:translateY(0) translateX(0) scale(.6);opacity:0}
+  10%{opacity:1}
+  50%{transform:translateY(-45vh) translateX(20px) scale(1)}
+  90%{opacity:.4}
+  100%{transform:translateY(-95vh) translateX(-10px) scale(.4);opacity:0}
+}
+.screen{
+  position:fixed;inset:0;z-index:10;
+  display:flex;flex-direction:column;
+  transition:opacity .4s,transform .4s;
+}
+.screen.out{opacity:0;transform:scale(.97);pointer-events:none}
+
+/* ══════════════════════════════════════════
+   INTRO SCREEN (unchanged)
+══════════════════════════════════════════ */
+#introScreen{align-items:center;justify-content:center;gap:0}
+.inn-sign{
+  position:relative;width:min(320px,88vw);background:var(--leather);
+  border:3px solid var(--gold-dk);border-radius:var(--r-lg);
+  padding:2rem 1.8rem 1.6rem;text-align:center;
+  box-shadow:0 0 0 1px rgba(201,148,58,.2),0 0 40px rgba(200,98,42,.35),inset 0 0 30px rgba(0,0,0,.5);
+  animation:signSway 6s ease-in-out infinite;
+}
+@keyframes signSway{0%,100%{transform:rotate(-.4deg)}50%{transform:rotate(.4deg)}}
+.inn-sign::before{
+  content:'';position:absolute;inset:0;border-radius:var(--r-lg);opacity:.12;
+  background:repeating-linear-gradient(5deg,transparent 0px,transparent 3px,rgba(0,0,0,.4) 3px,rgba(0,0,0,.4) 4px);
+  pointer-events:none;
+}
+.inn-sign::after{
+  content:'';position:absolute;top:-22px;left:50%;transform:translateX(-50%);
+  width:2px;height:22px;background:linear-gradient(180deg,transparent,var(--gold-dk));
+}
+.sign-ornament{
+  font-size:.75rem;color:var(--gold-dk);letter-spacing:.3em;margin-bottom:.4rem;
+  display:flex;align-items:center;gap:.5rem;justify-content:center;
+}
+.sign-ornament span{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dk),transparent)}
+.sign-title{
+  font-family:'Uncial Antiqua',cursive;font-size:clamp(1.6rem,6vw,2.2rem);
+  color:var(--gold-lt);text-shadow:0 0 20px rgba(200,98,42,.8),0 2px 4px rgba(0,0,0,.8);
+  line-height:1.15;letter-spacing:.06em;
+}
+.sign-en{
+  font-family:'IM Fell English',serif;font-style:italic;
+  font-size:.8rem;color:var(--parch-dim);letter-spacing:.18em;margin-top:.3rem;
+}
+.sign-divider{margin:1rem auto;width:80%;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dk),transparent)}
+.sign-tagline{font-family:'IM Fell English',serif;font-style:italic;font-size:.85rem;color:var(--parch-dim);line-height:1.6}
+.candle-row{display:flex;gap:2.5rem;justify-content:center;margin:1.4rem 0 .8rem}
+.candle{position:relative;display:flex;flex-direction:column;align-items:center}
+.candle-flame{
+  width:10px;height:16px;
+  background:radial-gradient(ellipse at 50% 100%,var(--ember-glow) 0%,var(--ember) 60%,transparent 100%);
+  border-radius:50% 50% 30% 30%;animation:flameDance 1.8s ease-in-out infinite alternate;
+  filter:drop-shadow(0 0 4px var(--ember));margin-bottom:-1px;
+}
+@keyframes flameDance{
+  0%{transform:scaleX(1) scaleY(1) rotate(-2deg);filter:drop-shadow(0 0 4px var(--ember))}
+  33%{transform:scaleX(.85) scaleY(1.1) rotate(1deg);filter:drop-shadow(0 0 7px var(--ember-glow))}
+  66%{transform:scaleX(1.1) scaleY(.95) rotate(-1deg);filter:drop-shadow(0 0 5px var(--ember))}
+  100%{transform:scaleX(.9) scaleY(1.05) rotate(2deg);filter:drop-shadow(0 0 8px var(--ember-glow))}
+}
+.candle-body{
+  width:14px;height:40px;background:linear-gradient(180deg,#e8d8b8 0%,#c8b898 100%);
+  border-radius:2px;box-shadow:inset -3px 0 6px rgba(0,0,0,.3);
+}
+.candle-glow{
+  position:absolute;top:-4px;width:30px;height:30px;border-radius:50%;
+  background:radial-gradient(circle,rgba(245,160,80,.35) 0%,transparent 70%);
+  animation:glowPulse 1.8s ease-in-out infinite alternate;
+}
+@keyframes glowPulse{from{opacity:.6;transform:scale(1)}to{opacity:1;transform:scale(1.2)}}
+.btn-enter{
+  display:block;width:100%;max-width:240px;margin:.2rem auto;padding:.85rem 1.5rem;
+  font-family:'Uncial Antiqua',cursive;font-size:.9rem;letter-spacing:.08em;color:var(--ink);
+  background:linear-gradient(135deg,var(--gold-dk) 0%,var(--gold) 50%,var(--gold-dk) 100%);
+  border:none;border-radius:var(--r);cursor:pointer;
+  box-shadow:0 4px 18px rgba(201,148,58,.4),inset 0 1px 0 rgba(255,255,255,.25);
+  transition:all .2s;position:relative;overflow:hidden;
+}
+.btn-enter::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.22) 50%,transparent 60%);
+  transform:translateX(-100%);transition:transform .5s;
+}
+.btn-enter:hover::before{transform:translateX(100%)}
+.btn-enter:active{transform:scale(.96)}
+
+/* ══════════════════════════════════════════
+   PREP SCREEN (styles unchanged, 480px max-width already applied)
+══════════════════════════════════════════ */
+#prepScreen{overflow:hidden}
+.prep-header{
+  flex-shrink:0;background:linear-gradient(180deg,var(--leather) 0%,var(--smoke) 100%);
+  border-bottom:1px solid var(--gold-dk);padding:.7rem 1rem .6rem;position:relative;
+}
+.prep-header::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+}
+.ph-top{display:flex;align-items:center;justify-content:space-between}
+.ph-title{
+  font-family:'Uncial Antiqua',cursive;font-size:1rem;color:var(--gold-lt);letter-spacing:.06em;
+  text-shadow:0 0 12px rgba(200,98,42,.6);
+}
+.ph-sub{font-family:'IM Fell English',serif;font-style:italic;font-size:.72rem;color:var(--parch-dim);margin-top:.15rem}
+.slots-strip{
+  flex-shrink:0;padding:.6rem 1rem .5rem;background:var(--smoke);
+  border-bottom:1px solid rgba(201,148,58,.15);
+  max-width:480px;margin:0 auto;width:100%;
+}
+.slots-label{
+  font-family:'IM Fell English',serif;font-style:italic;font-size:.68rem;
+  color:var(--gold-dk);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;
+}
+.slots-row{display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap;width:100%}
+.eq-slot{
+  flex:1;min-height:72px;max-width:72px;background:var(--smoke-lt);
+  border:1.5px dashed var(--gold-dk);border-radius:var(--r-lg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .25s;position:relative;overflow:hidden;padding:.3rem .2rem;
+}
+.eq-slot.filled{
+  border-style:solid;border-color:var(--gold);
+  background:linear-gradient(160deg,var(--smoke-lt),var(--leather));
+  box-shadow:0 0 10px rgba(201,148,58,.2),inset 0 0 8px rgba(0,0,0,.3);
+}
+.eq-slot.filled:active{transform:scale(.94)}
+.eq-slot .slot-ico{font-size:1.6rem;line-height:1}
+.eq-slot .slot-nm{
+  font-size:.58rem;color:var(--gold);font-family:'IM Fell English',serif;
+  text-align:center;margin-top:.15rem;line-height:1.2;
+}
+.eq-slot .slot-empty-txt{font-size:.55rem;color:var(--leather-lt);font-family:'IM Fell English',serif;font-style:italic}
+.remove-x{
+  position:absolute;top:2px;right:3px;width:14px;height:14px;border-radius:50%;
+  background:var(--wax);border:none;cursor:pointer;font-size:.55rem;color:rgba(255,255,255,.8);
+  display:none;align-items:center;justify-content:center;transition:background .2s;
+}
+.remove-x:hover{background:var(--wax-lt)}
+.eq-slot.filled .remove-x{display:flex}
+.slots-count{
+  font-family:'IM Fell English',serif;font-size:.72rem;color:var(--parch-dim);
+  padding:.2rem 0 0 .2rem;white-space:nowrap;flex-shrink:0;align-self:flex-end;
+}
+.slots-count .n{color:var(--gold-lt);font-size:.9rem}
+.prep-body{flex:1;overflow-y:auto;padding:.7rem 1rem 6rem;scroll-behavior:smooth}
+.prep-body::-webkit-scrollbar{width:4px}
+.prep-body::-webkit-scrollbar-track{background:transparent}
+.prep-body::-webkit-scrollbar-thumb{background:var(--gold-dk);border-radius:2px}
+.cat-section{margin-bottom:1.2rem}
+.cat-label{
+  display:flex;align-items:center;gap:.5rem;font-family:'IM Fell English',serif;font-style:italic;
+  font-size:.75rem;color:var(--gold);letter-spacing:.08em;margin-bottom:.55rem;
+}
+.cat-label::before,.cat-label::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dk),transparent)}
+.acc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem}
+/* ⚡ 基礎樣式：預設是亮的 (已擁有) */
+/* 修正卡片內部間距，避免文字擠在一起 */
+.acc-card {
+  min-height: 110px; /* 確保卡片高度一致 */
+  padding: 0.8rem;
+  justify-content: flex-start;
+}
+.acc-card * {
+  pointer-events: none; /* 讓點擊事件直接穿透到 card 本身 */
+}
+.acc-card .equipped-tick, .acc-card .locked-badge {
+  pointer-events: none;
+}
+.acc-card::before{
+  content:'';position:absolute;inset:0;border-radius:var(--r-xl);opacity:.04;pointer-events:none;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+.acc-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.5),0 0 12px rgba(201,148,58,.18)}
+.acc-card:active{transform:translateY(0) scale(.97)}
+/* 裝備中的卡片呼吸特效 */
+@keyframes equippedPulse {
+  0% { box-shadow: 0 0 8px rgba(201, 148, 58, 0.2); transform: scale(1); }
+  100% { box-shadow: 0 0 20px rgba(201, 148, 58, 0.5); transform: scale(1.02); }
+}
+
+.acc-card.equipped {
+  border-color: var(--gold) !important;
+  background: linear-gradient(150deg, #2a2010 0%, #1e1a0e 100%) !important;
+  /* ⚡ 關鍵：這行讓它動起來 */
+  animation: equippedPulse 2s ease-in-out infinite alternate !important;
+  z-index: 5;
+}
+.acc-card.maxed{opacity:.4;cursor:not-allowed}
+.acc-card.maxed:hover{transform:none;box-shadow:none}
+/* 🌚 修正未擁有配件樣式：不要過度變暗 */
+.acc-card.locked {
+  filter: grayscale(0.8) brightness(0.5); /* 稍微降低亮度就好 */
+  opacity: 0.7;
+  border: 1px dashed var(--leather-lt);
+  background: rgba(42, 34, 24, 0.4);
+  cursor: help; /* 提示可以點擊看說明 */
+}
+
+.rarity-star-v2 {
+  font-size: 0.55rem;
+  color: #ffcc00; /* 明亮的金色 */
+  filter: drop-shadow(0 0 2px rgba(255, 204, 0, 0.5));
+}
+
+/* 只有鎖定時星星才跟著變暗 */
+.acc-card.locked .rarity-star-v2 {
+  color: #7a5820;
+  filter: none;
+}
+
+/* 戳印樣式：蓋在卡片中間 */
+.locked-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  background: rgba(139, 28, 28, 0.6); /* 暗紅色 */
+  color: white;
+  border: 1px solid var(--wax-lt);
+  padding: 2px 10px;
+  font-size: 0.6rem;
+  font-weight: bold;
+  font-family: 'MedievalSharp', cursive;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+.acc-top{display:flex;align-items:flex-start;gap:.5rem}
+.acc-icon-wrap{
+  width:42px;height:42px;flex-shrink:0;border-radius:50%;
+  background:radial-gradient(circle,var(--leather) 0%,var(--smoke) 100%);
+  border:1.5px solid var(--leather-lt);display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;transition:border-color .2s,box-shadow .2s;
+}
+.acc-card.equipped .acc-icon-wrap{border-color:var(--gold);box-shadow:0 0 12px rgba(201,148,58,.5)}
+.acc-icon-wrap .equipped-ring{
+  position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold-lt);opacity:0;animation:none;
+}
+.acc-card.equipped .equipped-ring{opacity:.6;animation:ringPulse 2s ease-in-out infinite}
+@keyframes ringPulse{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.15);opacity:0}}
+.acc-meta{flex:1;min-width:0}
+.acc-name{font-family:'Uncial Antiqua',cursive;font-size:.72rem;color:var(--gold-lt);letter-spacing:.03em;line-height:1.2}
+.acc-type-badge{
+  display:inline-flex;align-items:center;gap:.2rem;padding:.1rem .35rem;border-radius:2px;
+  font-size:.48rem;letter-spacing:.05em;font-family:'IM Fell English',serif;margin-top:.2rem;
+}
+.badge-active{background:rgba(139,28,28,.5);color:#e88080;border:1px solid rgba(139,28,28,.6)}
+.badge-passive{background:rgba(30,58,90,.5);color:#80b8e0;border:1px solid rgba(30,58,90,.6)}
+.acc-req{font-family:'IM Fell English',serif;font-style:italic;font-size:.6rem;color:var(--ember);margin-top:.05rem}
+.acc-desc{
+  font-family:'IM Fell English',serif;font-size:.62rem;color:var(--parch-dim);line-height:1.45;
+  border-top:1px solid rgba(201,148,58,.12);padding-top:.25rem;margin-top:.1rem;
+}
+.equipped-tick{
+  position:absolute;top:.4rem;right:.45rem;font-size:.7rem;color:var(--gold-lt);
+  opacity:0;transition:opacity .2s;text-shadow:0 0 6px var(--gold);
+}
+.acc-card.equipped .equipped-tick{opacity:1}
+
+.prep-footer{
+  position:fixed;bottom:0;left:0;right:0;z-index:20;padding:.7rem 1rem;
+  background:linear-gradient(0deg,rgba(12,10,8,.98) 70%,transparent 100%);
+}
+.cta-row{display:flex;gap:.6rem;align-items:center}
+.btn-battle{
+  flex:1;padding:.85rem;font-family:'Uncial Antiqua',cursive;font-size:.85rem;letter-spacing:.06em;
+  color:var(--ink);background:linear-gradient(135deg,#9a6010 0%,var(--gold) 45%,#9a6010 100%);
+  border:none;border-radius:var(--r);cursor:pointer;
+  box-shadow:0 4px 20px rgba(201,148,58,.4),inset 0 1px 0 rgba(255,255,255,.2);
+  transition:all .2s;position:relative;overflow:hidden;
+}
+.btn-battle::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.18) 50%,transparent 60%);
+  transform:translateX(-100%);transition:transform .45s;
+}
+.btn-battle:hover::after{transform:translateX(100%)}
+.btn-battle:active{transform:scale(.97)}
+.btn-battle:disabled{opacity:.35;cursor:not-allowed}
+.btn-back{
+  padding:.85rem .9rem;background:transparent;border:1.5px solid var(--leather-lt);border-radius:var(--r);
+  color:var(--parch-dim);cursor:pointer;font-size:.75rem;transition:all .2s;
+}
+.btn-back:hover{border-color:var(--gold-dk);color:var(--parch)}
+
+/* 🕯️ 酒館風格通知訊息 */
+#toast-container {
+  position: fixed;
+  top: 30px; /* 顯示在螢幕上方 */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999; /* 確保在最前面 */
+  pointer-events: none; /* 防止擋住點擊 */
+}
+
+.toast-msg {
+  background: linear-gradient(135deg, var(--leather) 0%, var(--smoke) 100%);
+  color: var(--gold-lt);
+  border: 1.5px solid var(--gold-dk);
+  padding: 12px 24px;
+  border-radius: var(--r);
+  font-size: 0.8rem;
+  margin-bottom: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  font-family: 'Noto Serif TC', serif;
+  text-align: center;
+  /* ⚡ 動畫：浮現、停留、消失 */
+  animation: toastFade 3s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+@keyframes toastFade {
+  0% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+  10% { opacity: 1; transform: translateY(0) scale(1); }
+  85% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+}
+
+/* ══════════════════════════════════════════
+   BATTLE SCREEN (styles unchanged)
+══════════════════════════════════════════ */
+#battleScreen{overflow:hidden}
+.practice-banner{
+  display:flex;align-items:center;justify-content:center;gap:.4rem;
+  background:rgba(30,58,90,.35);border-bottom:1px solid rgba(74,138,176,.2);padding:.25rem .5rem;
+  font-family:'IM Fell English',serif;font-style:italic;font-size:.65rem;color:var(--rune-lt);flex-shrink:0;
+}
+.battle-header{
+  flex-shrink:0;background:linear-gradient(180deg,var(--leather) 0%,var(--smoke) 100%);
+  border-bottom:1px solid var(--gold-dk);padding:.55rem 1rem;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.bh-title{font-family:'Uncial Antiqua',cursive;font-size:.8rem;color:var(--gold-lt)}
+.bh-turn{
+  font-family:'IM Fell English',serif;font-size:.7rem;padding:.2rem .55rem;border-radius:2px;
+  background:var(--wax);color:#e88080;animation:turnPulse 1.5s ease-in-out infinite alternate;
+}
+@keyframes turnPulse{from{box-shadow:0 0 0 var(--wax)}to{box-shadow:0 0 8px rgba(192,57,43,.5)}}
+.btn-sm{
+  padding:.3rem .65rem;border-radius:var(--r);background:transparent;border:1px solid var(--leather-lt);
+  color:var(--parch-dim);font-size:.65rem;cursor:pointer;font-family:'IM Fell English',serif;transition:all .2s;
+}
+.btn-sm:hover{border-color:var(--gold-dk);color:var(--parch)}
+.hp-zone{
+  flex-shrink:0;padding:.5rem 1rem;background:var(--smoke);border-bottom:1px solid rgba(201,148,58,.1);
+  display:flex;gap:.6rem;align-items:center;
+}
+.hp-block{flex:1;text-align:center}
+.hp-block-lbl{font-family:'IM Fell English',serif;font-style:italic;font-size:.6rem;color:var(--parch-dim);margin-bottom:.2rem}
+.hearts-row{display:flex;gap:.2rem;justify-content:center;flex-wrap:wrap}
+.h-heart{font-size:1.05rem;transition:all .35s;display:inline-block}
+.h-heart.empty{opacity:.18;filter:grayscale(1)}
+.h-heart.drain{animation:hDrain .45s ease-out}
+@keyframes hDrain{0%{transform:scale(1.4);filter:brightness(2)}100%{transform:scale(1)}}
+.vs-sep{color:var(--gold-dk);font-family:'Uncial Antiqua',cursive;font-size:.8rem}
+.card-zone{flex-shrink:0;padding:.5rem 1rem;display:flex;gap:.55rem}
+.card-wrap{flex:1}
+.card-lbl{font-family:'IM Fell English',serif;font-style:italic;font-size:.6rem;color:var(--parch-dim);margin-bottom:.25rem}
+.action-card{
+  background:var(--smoke-lt);border:1.5px solid var(--leather-lt);border-radius:var(--r-lg);
+  padding:.55rem .65rem;position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s;min-height:74px;
+}
+.action-card.ready{border-color:var(--gold);animation:cardGlow 1.4s ease-in-out infinite alternate}
+@keyframes cardGlow{from{box-shadow:0 0 6px rgba(201,148,58,.3)}to{box-shadow:0 0 22px rgba(201,148,58,.7),0 0 40px rgba(201,148,58,.2)}}
+.action-card.droptarget{border-color:var(--ember);box-shadow:0 0 14px rgba(200,98,42,.5)}
+.card-face{
+  position:absolute;top:.35rem;right:.45rem;font-size:.5rem;padding:.12rem .38rem;
+  border-radius:2px;font-family:'IM Fell English',serif;
+}
+.face-A{background:rgba(30,58,90,.7);color:var(--rune-lt)}
+.face-B{background:rgba(139,28,28,.7);color:#e88080}
+.card-pts{font-family:'Uncial Antiqua',cursive;font-size:1.5rem;color:var(--parch);line-height:1}
+.card-max{font-size:.6rem;color:var(--parch-dim);font-family:'IM Fell English',serif}
+.pbar-wrap{height:5px;background:rgba(201,148,58,.12);border-radius:3px;margin:.35rem 0 .3rem;overflow:hidden}
+.pbar{height:100%;border-radius:3px;transition:width .4s;background:linear-gradient(90deg,var(--gold-dk),var(--gold))}
+.card-actions{display:flex;gap:.35rem;margin-top:.25rem}
+.cact-btn{
+  flex:1;padding:.28rem;border-radius:4px;border:1px solid;font-size:.6rem;cursor:pointer;
+  transition:all .2s;font-family:'IM Fell English',serif;
+}
+.cact-atk{border-color:var(--wax-lt);color:var(--wax-lt);background:rgba(139,28,28,.15)}
+.cact-atk:hover{background:rgba(139,28,28,.3)}
+.cact-heal{border-color:var(--jade-lt);color:var(--jade-lt);background:rgba(26,74,56,.15)}
+.cact-heal:hover{background:rgba(26,74,56,.3)}
+.cact-btn:disabled{opacity:.28;cursor:not-allowed}
+.acc-bar-lbl{
+  flex-shrink:0;font-family:'IM Fell English',serif;font-style:italic;
+  font-size:.6rem;color:var(--parch-dim);padding:0 1rem .2rem;
+}
+
+
+.acc-bar::-webkit-scrollbar{display:none}
+
+.acc-arena {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1rem 0.45rem;
+  flex-shrink: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+/* ══════ 配件競技場佈局 ══════ */
+.acc-arena-lbl {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1.2rem 0.2rem;
+  max-width: 480px;
+  margin: 0.5rem auto 0;
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 0.65rem;
+  color: var(--gold-dk);
+  letter-spacing: 0.05em;
+}
+.acc-arena {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0 1rem 0.6rem;
+  flex-shrink: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+.acc-bar {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.45rem;
+}
+.acc-bar-sep {
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--gold-dk), transparent);
+  opacity: 0.25;
+}
+
+/* ══════ 配件晶片 (找回原本的特效) ══════ */
+.acc-chip {
+  background: var(--smoke-lt);
+  border: 1px solid var(--leather-lt);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .2s;
+  position: relative;
+  /* ⚡ 修正：縮小上下內距，騰出垂直空間 */
+  padding: .2rem .1rem; 
+  /* ⚡ 修正：65px 是目前最能維持原本「方塊感」的高度 */
+  min-height: 65px; 
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.3); /* 增加一點點深度 */
+}
+
+/* 保持你原本的特效 */
+.acc-chip.droptarget {
+  border-color: var(--ember) !important;
+  box-shadow: 0 0 14px rgba(200, 98, 42, 0.6) !important;
+  transform: scale(1.05);
+  z-index: 10;
+}
+
+.acc-chip.storing {
+  border-color: var(--gold-lt);
+  box-shadow: 0 0 15px rgba(201, 148, 58, 0.4);
+  animation: storingGlow 2s ease-in-out infinite;
+}
+
+/* ⚡ 修正：稍微縮小圖示，讓它在 65px 下不顯得擁擠 */
+.chip-ico { 
+  font-size: 1.3rem; 
+  margin-bottom: 1px; 
+}
+
+/* ⚡ 修正：稍微加大字體，因為原本的 .48rem 在 65px 下會顯得太小而模糊 */
+.chip-nm {
+  font-size: .52rem; 
+  color: var(--gold);
+  font-family: 'Uncial Antiqua', cursive;
+  text-align: center;
+  line-height: 1.1;
+  padding: 0 2px;
+}
+
+.chip-passive {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: .35rem;
+  background: rgba(30, 58, 90, 0.8);
+  color: var(--rune-lt);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+.acc-chip.exhausted { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
+.battle-log{
+  flex-shrink:0;height:46px;overflow-y:auto;padding:.25rem .8rem;
+  background:rgba(0,0,0,.35);border-top:1px solid rgba(201,148,58,.08);scrollbar-width:none;
+}
+.battle-log::-webkit-scrollbar{display:none}
+.log-line{font-family:'IM Fell English',serif;font-size:.68rem;line-height:1.6;padding:.05rem 0}
+.log-player{color:var(--gold-lt)}
+.log-system{color:var(--parch-dim);font-style:italic}
+.log-good{color:#80e0a0}
+.log-bad{color:#e08080}
+.dice-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0.2rem 1rem 90px; /* 墊高 90px 避開底部按鈕列 */
+  min-height: 110px;
+  justify-content: center;
+  position: relative; /* ⚡ 關鍵：作為定位基準 */
+}
+
+.dice-lbl {
+  position: absolute;
+  right: 12px;        /* 稍微往左移一點點，更有呼吸感 */
+  bottom: 75px;       /* 貼近底部按鈕列上方 */
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 0.58rem; /* 稍微放大一點點增加可讀性 */
+  color: var(--parch-dim); /* ⚡ 改用較亮的羊皮紙色 */
+  pointer-events: none;
+  opacity: 0.85;      /* ⚡ 提高不透明度，讓字更亮 */
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.8); /* 加入微弱陰影，確保在任何背景都能看清 */
+}
+.dice-tray {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  justify-content: center;
+  padding-top: 5px; /* ⚡ 減少頂部間距 */
+  flex-wrap: wrap; 
+}
+.die{
+  width:66px;height:66px;background:var(--parch);border-radius:12px;border:2px solid var(--gold-dk);
+  display:flex;align-items:center;justify-content:center;font-size:2.1rem;
+  cursor:grab;transition:transform .15s,opacity .2s,box-shadow .2s;
+  box-shadow:3px 3px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.4);
+  color:var(--ink);user-select:none;touch-action:none;position:relative;
+}
+.die:not(.used):hover{transform:translateY(-3px);box-shadow:3px 6px 0 rgba(0,0,0,.6),0 0 12px rgba(200,98,42,.3)}
+.die.used{opacity:.22;cursor:not-allowed;transform:none}
+.die.rolling{animation:dieRoll .55s ease-out}
+@keyframes dieRoll{
+  0%{transform:rotate(0deg) scale(1)}20%{transform:rotate(90deg) scale(.8)}
+  50%{transform:rotate(200deg) scale(1.15)}80%{transform:rotate(320deg) scale(.9)}100%{transform:rotate(360deg) scale(1)}
+}
+.die-val{position:absolute;bottom:2px;right:4px;font-size:.45rem;color:rgba(0,0,0,.4);font-family:'IM Fell English',serif}
+.battle-ctrl {
+  position: fixed; /* ⚡ 關鍵：固定在螢幕底部，不再被內容推走 */
+  bottom: 0;
+  left: 0;
+  right: 0;
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.8rem 1rem calc(0.8rem + env(safe-area-inset-bottom)); /* 避開手機底線 */
+  background: linear-gradient(0deg, var(--ink) 80%, transparent 100%);
+  border-top: 1px solid rgba(201, 148, 58, 0.2);
+  z-index: 100; /* 確保在最上層 */
+}
+.die.locked {
+  cursor: not-allowed;
+  opacity: 0.5;
+  filter: grayscale(0.8);
+  box-shadow: none;
+  transform: none !important;
+  pointer-events: none; /* 徹底從瀏覽器層級禁止滑鼠事件 */
+}
+.btn-roll-b{
+  flex:1;padding:.75rem;font-family:'Uncial Antiqua',cursive;font-size:.75rem;letter-spacing:.05em;
+  color:var(--ink);background:linear-gradient(135deg,var(--gold-dk) 0%,var(--gold) 100%);
+  border:none;border-radius:var(--r);cursor:pointer;box-shadow:0 3px 12px rgba(201,148,58,.35);transition:all .2s;
+}
+.btn-roll-b:disabled{opacity:.35;cursor:not-allowed}
+.btn-roll-b:active{transform:scale(.96)}
+.btn-end-b {
+  padding: .75rem .9rem;
+  background: transparent;
+  border: 1.5px solid var(--leather-lt);
+  border-radius: var(--r);
+  color: var(--parch-dim);
+  font-size: .72rem;
+  cursor: pointer;
+  font-family: 'IM Fell English', serif;
+  transition: all .2s;
+  opacity: 1; /* 預設不透明 */
+}
+
+.btn-end-b:hover:not(:disabled) {
+  border-color: var(--gold-lt);
+  color: var(--parch);
+  box-shadow: 0 0 10px rgba(201, 148, 58, 0.2);
+}
+
+/* 這是關鍵：當按鈕被禁用的時候，才變灰變半透明 */
+.btn-end-b:disabled {
+  opacity: 0.3 !important;
+  cursor: not-allowed;
+  filter: grayscale(1);
+  border-color: var(--leather-lt) !important;
+}
+.phase-row{flex-shrink:0;display:flex;gap:.3rem;justify-content:center;padding:.3rem}
+.phase-pill{
+  padding:.15rem .55rem;border-radius:8px;font-size:.52rem;
+  font-family:'IM Fell English',serif;letter-spacing:.05em;transition:all .3s;
+}
+.pp-active{background:var(--gold);color:var(--ink)}
+.pp-done{background:rgba(201,148,58,.18);color:var(--gold-dk)}
+.pp-inactive{background:var(--smoke-lt);color:var(--leather-lt)}
+.float-text{
+  position:fixed;pointer-events:none;z-index:400;font-family:'Uncial Antiqua',cursive;
+  font-size:1.4rem;font-weight:900;animation:floatUp 1.1s ease-out forwards;white-space:nowrap;
+}
+@keyframes floatUp{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-70px);opacity:0}}
+.ft-dmg{color:#ff5050;text-shadow:0 0 10px #ff0000}
+.ft-heal{color:#50ff90;text-shadow:0 0 10px #00ff50}
+.ft-pts{color:var(--gold-lt);text-shadow:0 0 8px rgba(201,148,58,.8)}
+.ft-spec{color:#a080ff;text-shadow:0 0 10px #8040ff}
+#dragGhost{
+  position:fixed;z-index:500;pointer-events:none;
+  width:66px;height:66px; /* 寬度高度與原本骰子一致 */
+  background:var(--parch);
+  border-radius:12px;border:2px solid var(--gold);
+  display:flex;align-items:center;justify-content:center;
+  font-size:2.1rem; /* 骰子圖案大小 */
+  box-shadow:0 8px 24px rgba(0,0,0,.6);
+  opacity:0;transition:opacity .1s;
+  color:var(--ink);
+}
+#dragGhost.active{opacity:1}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--parch-dim);
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  /* ⚡ 修正：確保內容垂直水平置中 */
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1; /* 讓三個按鈕平分底部寬度 */
+}
+.tab-btn.active {
+  color: var(--gold-lt);
+  background: rgba(201,148,58,0.1);
+  box-shadow: inset 0 4px 0 var(--gold-lt);
+}
+.shop-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; padding: 0.5rem; }
+.shop-item {
+  background: var(--smoke-lt); border: 2px solid var(--gold-dk); border-radius: var(--r-lg);
+  padding: 1rem; display: flex; align-items: center; gap: 1rem;
+}
+.shop-info { flex: 1; }
+.btn-buy {
+  background: var(--wax); color: white; border: none; padding: 0.5rem 1rem;
+  border-radius: var(--r); cursor: pointer; font-family: 'MedievalSharp';
+}
+.btn-buy:disabled { background: #555; opacity: 0.5; }
+
+/* ══════════════════════════════════════════
+   VICTORY SCREEN
+══════════════════════════════════════════ */
+#victoryScreen{align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#1a1008 0%,#0c0a08 100%)}
+.vic-box{text-align:center;padding:2rem}
+.vic-icon{font-size:5rem;animation:vicBounce .7s cubic-bezier(.36,.07,.19,.97)}
+@keyframes vicBounce{0%{transform:scale(0) rotate(-15deg)}70%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(0)}}
+.vic-title{font-family:'Uncial Antiqua',cursive;font-size:2rem;color:var(--gold-lt);margin:.8rem 0 .3rem;text-shadow:0 0 30px rgba(200,98,42,.7)}
+.vic-sub{font-family:'IM Fell English',serif;font-style:italic;font-size:1rem;color:var(--parch-dim)}
+.vic-reason{font-family:'IM Fell English',serif;font-size:.9rem;color:var(--ember);margin:.5rem 0 1.5rem}
+.vic-stats{
+  display:grid;grid-template-columns:1fr 1fr;gap:.5rem;
+  background:var(--smoke-lt);border:1px solid var(--gold-dk);border-radius:var(--r-lg);
+  padding:.8rem;margin:0 auto 1.2rem;max-width:280px;
+}
+.stat-item{text-align:center}
+.stat-n{font-family:'Uncial Antiqua',cursive;font-size:1.3rem;color:var(--gold-lt)}
+.stat-l{font-family:'IM Fell English',serif;font-style:italic;font-size:.65rem;color:var(--parch-dim)}
+
+/* ══════════════════════════════════════════
+   TOOLTIP
+══════════════════════════════════════════ */
+.tip-overlay{
+  position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.75);
+  display:flex;align-items:flex-end;justify-content:center;transition:opacity .25s;
+}
+.tip-overlay.out{opacity:0;pointer-events:none}
+.tip-card{
+  width:100%;max-width:480px;background:var(--leather);border:2px solid var(--gold-dk);
+  border-radius:var(--r-xl) var(--r-xl) 0 0;padding:1.2rem 1.5rem 2.2rem;
+  transform:translateY(0);transition:transform .3s;
+}
+.tip-overlay.out .tip-card{transform:translateY(100%)}
+.tip-ico{font-size:2.8rem;text-align:center;margin-bottom:.4rem}
+.tip-nm{font-family:'Uncial Antiqua',cursive;font-size:1.1rem;color:var(--gold-lt);text-align:center}
+.tip-req{font-family:'IM Fell English',serif;font-style:italic;font-size:.8rem;color:var(--ember);text-align:center;margin:.25rem 0 .7rem}
+.tip-body{font-family:'IM Fell English',serif;font-size:.95rem;color:var(--parch);line-height:1.65}
+.tip-close{
+  display:block;width:100%;margin-top:1rem;padding:.6rem;background:transparent;
+  border:1px solid var(--leather-lt);border-radius:var(--r);color:var(--parch-dim);cursor:pointer;
+  font-family:'IM Fell English',serif;font-size:.9rem;transition:all .2s;
+}
+.tip-close:hover{border-color:var(--gold-dk);color:var(--parch)}
+</style>
+</head>
+<body>
+
+<div class="bg-canvas"></div>
+<div class="vignette"></div>
+
+<!-- INTRO --><div class="screen" id="introScreen">
+  <div class="inn-sign">
+    <div class="sign-ornament"><span></span>迷霧酒館<span></span></div>
+    <div class="sign-title">The Misty<br>Tavern</div>
+    <div class="sign-en">Where dice decide fate</div>
+    <div class="candle-row">
+      <div class="candle"><div class="candle-glow"></div><div class="candle-flame"></div><div class="candle-body"></div></div>
+      <div class="candle"><div class="candle-glow"></div><div class="candle-flame" style="animation-delay:-.4s"></div><div class="candle-body" style="height:52px"></div></div>
+      <div class="candle"><div class="candle-glow"></div><div class="candle-flame" style="animation-delay:-.9s"></div><div class="candle-body" style="height:36px"></div></div>
+    </div>
+    <div class="sign-divider"></div>
+    <div class="sign-tagline">擲骰、裝備配件<br>在迷霧中決一生死</div>
+  </div>
+
+  <div style="text-align:center; margin-top:1.5rem">
+    <div id="authArea">
+      <button class="btn-enter" onclick="loginToTavern()" style="width: 220px;">📜 推開酒館大門</button>
+    </div>
+
+   <div id="accountInfoArea" style="margin-top:20px;">
+    <button class="btn-enter" onclick="goTo('prepScreen')" style="width: 220px; margin-bottom: 15px; background: linear-gradient(135deg, var(--jade) 0%, var(--jade-lt) 100%); color:white;">🏰 進入整備間</button>
+
+    <div id="uidDisplay" ...>載入中...</div>
+      
+      <div style="display:flex; justify-content:center; gap:5px; margin-bottom: 15px;">
+        <input type="text" id="nameInput" placeholder="新的稱號" 
+               style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--leather-lt); background: rgba(0,0,0,0.4); color: var(--parch); font-size: 0.6rem; width: 100px; text-align: center;">
+        <button class="btn-sm" onclick="changePlayerName()" style="font-size: 0.55rem; padding: 2px 8px;">更改稱號</button>
+      </div>
+
+      <button class="btn-back" onclick="showRules()" style="width: 220px; border-color:var(--gold-dk); color:var(--gold-lt); font-size: 0.7rem;">📜 查看規則指南</button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- PREP --><div class="screen out" id="prepScreen">
+  <div class="prep-header" style="background: linear-gradient(180deg, #2a1e15 0%, #0c0a08 100%); border-bottom: 2px solid var(--gold-dk); padding: 0.8rem 1rem; flex-shrink: 0;">
+    <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); opacity: 0.5;"></div>
+
+    <div class="ph-top" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+      <div style="display: flex; flex-direction: column;">
+        <div class="ph-title" id="currentTabTitle" style="font-family: 'Uncial Antiqua', cursive; font-size: 1.1rem; color: var(--gold-lt); text-shadow: 0 0 10px rgba(200,148,58,0.4); letter-spacing: 0.05em;">配件背包</div>
+        <span style="font-size: 0.5rem; color: var(--leather-lt); text-transform: uppercase; letter-spacing: 1px;">The Misty Tavern • System</span>
+      </div>
+      <button class="btn-sm" onclick="goTo('introScreen')" style="background: rgba(139, 28, 28, 0.15); border: 1px solid var(--wax-lt); color: var(--parch-dim); padding: 4px 10px; border-radius: 4px; font-size: 0.6rem; font-family: 'MedievalSharp';">← 返回酒館</button>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+      <div style="flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(201,148,58,0.2); padding: 0.4rem 0.6rem; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 0.7rem;">🌟</span>
+        <div style="display: flex; flex-direction: column; line-height: 1;">
+          <span style="font-size: 0.45rem; color: var(--gold-dk); margin-bottom: 2px;">ADVENTURER</span>
+          <span style="font-size: 0.75rem; color: var(--parch); font-family: 'MedievalSharp';">LV. <span id="displayLevel">1</span></span>
+        </div>
+      </div>
+      <div style="flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(241,196,15,0.2); padding: 0.4rem 0.6rem; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 0.7rem;">💰</span>
+        <div style="display: flex; flex-direction: column; line-height: 1;">
+          <span style="font-size: 0.45rem; color: #7a5820; margin-bottom: 2px;">GOLD RESERVE</span>
+          <span id="displayGold" style="font-size: 0.75rem; color: #f1c40f; font-family: 'MedievalSharp';">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tabContent" style="flex: 1; overflow-y: auto; padding-bottom: 100px;">
+    <div id="tabInventory" class="tab-pane" style="padding: 1rem;">
+      <div id="prepBody"></div>
+    </div>
+    <div id="tabShop" class="tab-pane" style="display:none; padding: 1rem;"></div>
+    <div id="tabBattle" class="tab-pane" style="display:none; padding: 1.5rem; text-align:center;">
+      <div style="background:var(--leather); padding: 1.5rem; border-radius: var(--r-xl); border: 2px solid var(--gold-dk); margin-bottom: 1rem;">
+        <h3 style="font-family:'Uncial Antiqua'; color:var(--gold-lt); margin-bottom:10px;">單機練習</h3>
+        <button class="btn-battle" id="battleBtn" onclick="startBattle()" disabled style="width:100%;">⚔ 開始練習對戰</button>
+      </div>
+      <div style="background:var(--smoke); padding: 1.5rem; border-radius: var(--r-xl); border: 1px dashed var(--gold-dk);">
+        <h3 style="font-family:'Uncial Antiqua'; color:var(--gold-lt); margin-bottom:10px;">聯網對戰</h3>
+        <input type="text" id="roomInput" placeholder="輸入房號" style="padding: 0.6rem; border-radius: 4px; border: 1px solid var(--gold-dk); background: rgba(0,0,0,0.6); color: var(--gold-lt); text-align: center; width: 100%; margin-bottom: 10px;">
+        <button class="btn-enter" onclick="joinOnlineRoom()" style="width: 100%; padding: 0.8rem;">⚔ 建立 / 加入房間</button>
+        <p id="battleHint" style="font-family:'IM Fell English',serif; font-style:italic; font-size:.6rem; color:var(--leather-lt); margin-top:10px;">請至少選擇 1 件配件</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-shrink: 0; height:70px; background:var(--ink); border-top:2px solid var(--gold-dk); display:flex; z-index:100; padding-bottom:env(safe-area-inset-bottom);">
+    <button class="tab-btn" onclick="switchTab('tabShop', '每日商店')">🛒<br>商店</button>
+    <button class="tab-btn active" onclick="switchTab('tabInventory', '配件背包')">📦<br>背包</button>
+    <button class="tab-btn" onclick="switchTab('tabBattle', '準備戰鬥')">⚔<br>戰鬥</button>
+  </div>
+</div>
+
+<!-- 我自己亂寫的，可能是lobbyscreen -->
+<div class="screen out" id="lobbyScreen">
+  <div class="prep-header" style="background: linear-gradient(180deg, #2a1e15 0%, #0c0a08 100%); border-bottom: 2px solid var(--gold-dk); padding: 0.8rem 1rem;">
+    <div class="ph-top" style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column;">
+        <div class="ph-title" style="font-family: 'Uncial Antiqua', cursive; font-size: 1.1rem; color: var(--gold-lt);">⚔ 戰前對局室</div>
+        <span style="font-size: 0.5rem; color: var(--leather-lt);">Room ID: <span id="displayRoomId">---</span></span>
+      </div>
+      </div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; padding: 1rem; gap: 1rem;">
+    <div style="display: flex; gap: 1rem; justify-content: space-around; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: var(--r-lg); border: 1px solid var(--gold-dk);">
+      <div style="text-align: center;">
+        <div style="color: var(--gold-lt); font-size: 0.8rem; margin-bottom: 0.5rem;">你的武裝</div>
+        <div id="myLobbySlots" style="display: flex; gap: 4px;"></div>
+        <div id="myReadyStatus" style="margin-top: 0.5rem; font-size: 0.6rem; color: var(--parch-dim);">選填配件中...</div>
+      </div>
+      
+      <div style="align-self: center; font-family: 'Uncial Antiqua'; color: var(--ember); font-size: 1.5rem;">VS</div>
+
+      <div style="text-align: center;">
+        <div style="color: var(--gold-lt); font-size: 0.8rem; margin-bottom: 0.5rem;">對手武裝</div>
+        <div id="enemyLobbySlots" style="display: flex; gap: 4px;"></div>
+        <div id="enemyReadyStatus" style="margin-top: 0.5rem; font-size: 0.6rem; color: var(--parch-dim);">等待對手進入...</div>
+      </div>
+    </div>
+
+    <div style="flex: 1; overflow-y: auto; background: var(--smoke); border-radius: var(--r-lg); padding: 0.5rem;">
+      <div class="cat-label">點擊選擇本局配件 (最多 5 件)</div>
+      <div id="lobbyAccGrid" class="acc-grid"></div>
+    </div>
+
+    <div style="padding: 1rem 0; text-align: center;">
+      <button id="readyBtn" class="btn-battle" onclick="toggleReady()" style="width: 100%; max-width: 300px;">✔ 我準備好了</button>
+      <button class="btn-back" onclick="quitRoom()" style="margin-top: 0.8rem; width: 100%; max-width: 300px;">✕ 離開房間</button>
+    </div>
+  </div>
+</div>
+
+<!-- BATTLE -->
+<div class="screen out" id="battleScreen">
+  <div class="battle-header">
+    <div class="bh-title">🎲 迷霧酒館</div>
+    <div class="bh-turn" id="bh_turn">你的回合</div>
+   <button class="btn-sm" onclick="quitBattle()">✕ 離開</button>
+  </div>
+  <div class="phase-row" id="phaseRow">
+    <div class="phase-pill pp-active" id="ph0">擲骰</div>
+    <div class="phase-pill pp-inactive" id="ph1">行動</div>
+    <div class="phase-pill pp-inactive" id="ph2">結束</div>
+  </div>
+  <div class="hp-zone">
+    <div class="hp-block">
+      <div class="hp-block-lbl">勇者血量</div>
+      <div class="hearts-row" id="hpHearts"></div>
+    </div>
+    <div class="vs-sep">VS</div>
+    <div class="hp-block">
+      <div class="hp-block-lbl">假想敵血量</div>
+      <div class="hearts-row" id="dummyHearts"></div>
+    </div>
+  </div>
+ <div class="card-zone">
+    <div class="card-wrap">
+      <div class="card-lbl">🃏 我的行動卡</div>
+      <div class="action-card" id="myCard">
+        <div class="card-face face-A" id="myFace">A面</div>
+        <div class="card-pts"><span id="myPts">0</span><span style="font-size:.7rem;color:var(--parch-dim)"> pts</span></div>
+        <div class="card-max">目標 <span id="myMax">8</span> 點</div>
+        <div class="pbar-wrap"><div class="pbar" id="myBar" style="width:0%"></div></div>
+        <div class="card-actions">
+          <button class="cact-btn cact-atk" id="atkBtn" onclick="useCard('atk')" disabled>⚔ 攻擊</button>
+          <button class="cact-btn cact-heal" id="healBtn" onclick="useCard('heal')" disabled>💚 回血</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-wrap">
+      <div class="card-lbl">📊 戰局面板 (你 / 對手)</div>
+      <div class="action-card" style="opacity:.95; padding: .4rem .6rem;">
+        <div style="border-bottom: 1px solid rgba(201,148,58,0.15); padding-bottom: .3rem; margin-bottom: .3rem;">
+          <div style="display:flex; justify-content:space-between; font-size:.55rem; color:var(--parch-dim); margin-bottom:2px;">
+            <span>🤖 對手能量 (<span id="enemyFace">A</span>面)</span>
+            <span><span id="enemyPts">0</span> / <span id="enemyMax">8</span></span>
+          </div>
+          <div class="pbar-wrap" style="height:4px; margin:0;"><div class="pbar" id="enemyBar" style="width:0%; background:linear-gradient(90deg, #8b1c1c, var(--wax-lt));"></div></div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:.2rem; font-size:.65rem">
+  <div style="display:flex; justify-content:space-between;">
+    <span style="color:var(--parch-dim)">回合數：</span>
+    <span id="statTurn" style="color:var(--gold-lt)">1</span> </div>
+  <div style="display:flex; justify-content:space-between;">
+    <span style="color:var(--parch-dim)">翻轉：</span>
+    <span id="statFlip" style="color:var(--gold-lt)">0 / 0</span>
+  </div>
+  <div style="display:flex; justify-content:space-between;">
+    <span style="color:var(--parch-dim)">攻擊：</span>
+    <span style="color:#e88080"><span id="statAtk">0</span> / <span id="statEnemyAtk">0</span></span> </div>
+  <div style="display:flex; justify-content:space-between;">
+    <span style="color:var(--parch-dim)">回血：</span>
+    <span style="color:#80e0a0"><span id="statHeal">0</span> / <span id="statEnemyHeal">0</span></span> </div>
+</div>
+      </div>
+    </div>
+  </div>
+ <div class="acc-arena-lbl">
+    <span>我的配件</span>
+    <span>對手配件</span>
+  </div>
+  <div class="acc-arena">
+    <div class="acc-bar" id="myAccBar"></div>
+    <div class="acc-bar-sep"></div>
+    <div class="acc-bar" id="enemyAccBar"></div>
+  </div>
+  <div class="battle-log" id="battleLog"></div>
+  <div class="dice-zone">
+    <div class="dice-lbl">🎲 骰子 — 拖入行動卡或配件欄位</div>
+    <div class="dice-tray" id="diceTray"></div>
+  </div>
+  <div class="battle-ctrl">
+    <button class="btn-roll-b" id="rollBtn" onclick="doRoll()">🎲 擲骰</button>
+    <button class="btn-end-b" id="endBtn" onclick="doEndTurn()" disabled>結束回合 →</button>
+  </div>
+</div>
+
+<!-- VICTORY -->
+<div class="screen out" id="victoryScreen">
+  <div class="vic-box">
+    <div class="vic-icon" id="vic_ico">🏆</div>
+    <div class="vic-title" id="vic_title">練習完成</div>
+    <div class="vic-sub" id="vic_sub">成果總結</div>
+    <div class="vic-reason" id="vic_reason"></div>
+    <div class="vic-stats" id="vic_stats"></div>
+    <button class="btn-enter" onclick="goTo('prepScreen')">再練一局</button>
+    <button class="btn-back" style="display:block;width:180px;margin:.5rem auto" onclick="goTo('introScreen')">返回酒館</button>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="tip-overlay out" id="tipOverlay" onclick="closeTip()">
+  <div class="tip-card" onclick="event.stopPropagation()">
+    <div class="tip-ico" id="tipIco"></div>
+    <div class="tip-nm" id="tipNm"></div>
+    <div class="tip-req" id="tipReq"></div>
+    <div class="tip-body" id="tipBody"></div>
+    <button class="tip-close" onclick="closeTip()">關閉</button>
+  </div>
+</div>
+
+<div class="tip-overlay out" id="rulesOverlay" onclick="closeRules()">
+  <div class="tip-card" style="max-height: 85vh; overflow-y: auto;" onclick="event.stopPropagation()">
+    <div class="tip-nm" style="font-size: 1.3rem; margin-bottom: 1rem; color:var(--gold-lt);">🎲 迷霧酒館：快速上手指南</div>
+    <div class="tip-body" style="font-size: 0.8rem; text-align: left; line-height: 1.6;">
+      <p style="color:var(--parch-dim); margin-bottom: 1rem;">這是一款 1對1 的骰子策略遊戲。你可以累積能量發動攻擊，或啟動配件施展特技。</p>
+      
+      <p style="color:var(--ember); font-weight: bold; margin-bottom: 0.3rem;">🏆 如何獲勝？</p>
+      <ul style="margin-left: 1.2rem; margin-bottom: 1rem;">
+        <li>血量歸零：把對方的 6 點血量扣光。</li>
+        <li>特殊勝利：達成配件要求（如：翻轉卡片 20 次）。</li>
+      </ul>
+
+      <p style="color:var(--ember); font-weight: bold; margin-bottom: 0.3rem;">⚔️ 回合三步驟</p>
+      <div style="background: rgba(0,0,0,0.3); padding: 0.7rem; border-radius: 6px; margin-bottom: 1rem; border: 1px solid var(--gold-dk);">
+        <p><strong>1. 擲骰：</strong>每回合擲出骰子。</p>
+        <p><strong>2. 行動：</strong>將骰子拖移至行動卡（累積點數）或配件（發動技能）。</p>
+        <p><strong>3. 結束：</strong>未使用的骰子會直接消失！</p>
+      </div>
+
+      <p style="color:var(--gold-lt); font-style: italic;">💡 小撇步：行動卡是穩定傷害，配件則是反敗為勝的驚喜！</p>
+    </div>
+    <button class="tip-close" onclick="closeRules()" style="margin-top:1.5rem;">我準備好了</button>
+  </div>
+</div>
+
+<div id="dragGhost"></div>
+
+
+
+
+
+
+<script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+
+<script>
+
+// 2. Firebase 配置與初始化
+const firebaseConfig = {
+  apiKey: "AIzaSyCgEKAs72ZfReeka6vbFFRjijlSqNBfl2Y",
+  authDomain: "misty-tavern.firebaseapp.com",
+  databaseURL: "https://misty-tavern-default-rtdb.asia-southeast1.firebasedatabase.app/", 
+  projectId: "misty-tavern",
+  storageBucket: "misty-tavern.firebasestorage.app",
+  messagingSenderId: "562413470832",
+  appId: "1:562413470832:web:5bd0ef40194640839260b5",
+  measurementId: "G-80MJRB84GW"
+};
+
+// 3. 初始化 Firebase 連結
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database(); 
+
+const BattleCommander = {
+  actions: {
+    // 1. 📡 對手把骰子放上行動卡
+    useDieOnCard: (act) => {
+      // 在我的螢幕上，給「對手(enemy)」加點數
+      FX.addPts(gs, 'enemy', act.val);
+      // 找到對應的那顆骰子變灰
+      if (gs.dice && gs.dice[act.dieIdx]) {
+        gs.dice[act.dieIdx].u = true;
+      }
+      log(`📡 對手將 ${FACES[act.val-1]} 填入了行動卡`, 'system');
+    },
+
+    // 在 BattleCommander.actions 裡面
+    useDieOnAcc: (act) => {
+      const acc = ACCESSORIES.find(a => a.id === act.accId);
+      if (acc && gs.dice && gs.dice[act.dieIdx]) {
+        // 1. ⚡ 強制同步對手投下的骰子點數
+        if (act.val) gs.dice[act.dieIdx].v = act.val;
+        gs.dice[act.dieIdx].u = true;
+
+        // 2. 🛡️ 聯網核心修正：手動更新對手帳本，不要呼叫 useAccessory
+        if (!gs.enemyStored[acc.id]) gs.enemyStored[acc.id] = [];
+        gs.enemyStored[acc.id].push(gs.dice[act.dieIdx].v);
+
+        // 3. 🏁 檢查是否達到發動條件
+        const totalNeeded = acc.trigger?.count || (acc.trigger?.faces ? acc.trigger.faces.length : 0);
+        if (gs.enemyStored[acc.id].length >= totalNeeded) {
+          // ⚡ 直接執行配件效果，不經過 useAccessory 的複雜檢查
+          acc.effect(gs, 'enemy'); 
+          gs.enemyStored[acc.id] = []; // 發動後清空
+        }
+        
+        // 冷卻紀錄
+        if (!gs.enemyUsedAccs) gs.enemyUsedAccs = [];
+        if (!gs.enemyUsedAccs.includes(act.accId)) {
+          gs.enemyUsedAccs.push(act.accId);
+        }
+      }
+    },
+
+    // 3. 📡 對手發動了行動卡技能 (攻擊或治療)
+    useCard: (act) => {
+     // act.actor 是發動者的 UID
+      // 這裡要判斷：如果發動者是我，target 就是 'enemy'；如果發動者是對方，target 就是 'player'
+      const isMe = (act.actor === myRole);
+      const target = isMe ? 'enemy' : 'player';
+
+      if (act.cardType === 'atk') {
+        FX.damage(gs, target, 1, isMe ? "🃏 行動卡攻擊" : "📡 對手行動卡攻擊");
+        // ⚡ 修正：誰發動的就加誰的統計
+        if(isMe) gs.statAtk++; else gs.enemyStatAtk++;
+      } else {
+        const healTarget = isMe ? 'player' : 'enemy';
+        FX.heal(gs, healTarget, 1, isMe ? "💚 行動卡治療" : "📡 對手行動卡治療");
+        // ⚡ 修正：誰治療的就加誰的統計
+        if(isMe) gs.statHeal++; else gs.enemyStatHeal++;
+      }
+
+      // 視覺同步：扣除對手的能量點數並翻面
+      const eMax = gs.enemyFace === 'A' ? 8 : 24;
+      gs.enemyPts = Math.max(0, gs.enemyPts - eMax);
+      gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
+      gs.enemyFlipCount = act.flipCount;
+
+    },
+
+    // 4. 📡 對手後悔了，從配件收回骰子
+    refundAcc: (act) => {
+      const accId = act.accId;
+      const ledger = gs.enemyStored; // 操作對手的帳本
+      const stored = ledger[accId] || [];
+
+      // 把那些對手用掉的骰子變回彩色 (可用狀態)
+      stored.forEach(val => {
+        const target = gs.dice.find(d => d.u && d.v === val);
+        if (target) target.u = false;
+      });
+
+      ledger[accId] = []; // 清空該配件帳本
+      log(`📡 對手從 ${ACCESSORIES.find(a=>a.id===accId).name} 收回了骰子`, 'system');
+    },
+
+    // 5. 📡 對手結束回合，強制清理
+    clearAccs: (act) => {
+      
+      if (gs.enemyStored) {
+        Object.keys(gs.enemyStored).forEach(id => {
+          const acc = ACCESSORIES.find(a => a.id === id);
+          // ⚡ 這裡全盤考慮：除非是「榮譽獎章」那種 keepStored 的，不然都要清空
+          if (!acc || !acc.keepStored) {
+            gs.enemyStored[id] = [];
+          }
+        });
+      }
+      log(`📡 對手未使用的能量已消散`, 'system');
+    }
+  },
+
+  // 接收總調度：外部只要傳入 act，我會自動找對應的 actions 執行
+  dispatch: (act) => {
+    if (BattleCommander.actions[act.type]) {
+      BattleCommander.actions[act.type](act);
+      renderBattle(); // 每次執行完對手動作，立刻刷新畫面
+    }
+  }
+};
+
+const auth = firebase.auth();
+let myUID = null; 
+
+function loginToTavern() {
+  auth.signInAnonymously().catch(err => alert("大門鎖住了：" + err.message));
+}
+
+auth.onAuthStateChanged((user) => {
+  const authArea = document.getElementById('authArea');
+  const accountInfoArea = document.getElementById('accountInfoArea'); // 確保抓到這個區域
+
+  if (user) {
+    myUID = user.uid;
+    window.myPlayerId = myUID;
+    
+    // 1. 隱藏登入按鈕
+    if(authArea) authArea.style.display = 'none'; 
+    
+    // 2. 顯示帳號資訊與改名區
+    if(accountInfoArea) accountInfoArea.style.display = 'block'; 
+
+    // 3. 載入資料
+    loadUserAccount(myUID);
+    
+    // 4. ⚡ 這是最重要的一行：自動推玩家進入整備間！
+    goTo('prepScreen'); 
+    
+  } else {
+    // 未登入時，確保按鈕是顯示的
+    if(authArea) authArea.style.display = 'block';
+    if(accountInfoArea) accountInfoArea.style.display = 'none';
+  }
+});
+
+// ⚡ [新增] 載入雲端存檔的邏輯
+function loadUserAccount(uid) {
+  db.ref('users/' + uid).once('value').then((snapshot) => {
+    const cloudData = snapshot.val();
+    if (cloudData) {
+      playerAccount = cloudData;
+      console.log("✅ 已恢復雲端存檔");
+    } else {
+      // 沒存檔的新玩家，給他初始數值
+      playerAccount = {
+        name: "勇者" + Math.floor(Math.random()*1000),
+        gold: 100,
+        level: 1,
+        warehouse: ['sword', 'shoes', 'tentacle', 'clock', 'bomb'],
+        currentLoadout: ['sword', 'shoes']
+      };
+      saveAccountToCloud(); // 幫他建立第一份存檔
+    }
+    syncAccountUI();
+    renderLibrary();
+    if(document.getElementById('uidDisplay')) {
+      document.getElementById('uidDisplay').textContent = "身分牌: " + playerAccount.name;
+    }
+  });
+}
+
+// ⚡ [新增] 將目前的 playerAccount 狀態儲存到雲端
+function saveAccountToCloud() {
+  if (!myUID) return;
+  db.ref('users/' + myUID).set(playerAccount)
+    .then(() => console.log("💾 自動存檔成功"))
+    .catch(err => console.error("❌ 存檔失敗", err));
+}
+
+function changePlayerName() {
+    const input = document.getElementById('nameInput');
+    const newName = input.value.trim();
+
+    // 1. 基本防呆
+    if (!newName) return alert("酒館老闆：『客人，總得有個名號吧？』");
+    if (newName.length > 8) return alert("酒館老闆：『名號太長，身分牌寫不下！（限8字）』");
+
+    // 2. 更新本地數值
+    playerAccount.name = newName;
+
+    // 3. 更新介面顯示
+    const displayEl = document.getElementById('uidDisplay');
+    if (displayEl) displayEl.textContent = "身分牌: " + newName;
+    
+    // 4. ⚡ 核心動作：同步到雲端存檔
+    saveAccountToCloud();
+
+    // 5. 清空輸入框並通知玩家
+    input.value = "";
+    alert("酒館老闆：『好的，" + newName + "，祝你在迷霧中好運！』");
+}
+
+// ⚡ 全盤考慮：斷線自動清理系統
+function setupPresence(roomId, role) {
+  const roomRef = db.ref(`rooms/${roomId}`);
+  
+  if (role === 'host') {
+    // 房主斷線直接移除房間
+    roomRef.onDisconnect().remove();
+  } else {
+    // 客人斷線則恢復房間為等待狀態
+    roomRef.child('guest').onDisconnect().remove();
+    roomRef.child('guest_ready').onDisconnect().remove();
+    roomRef.child('status').onDisconnect().set('waiting');
+    roomRef.child('timestamp').onDisconnect().set(Date.now());
+  }
+}
+
+// 🏆 玩家存檔數據
+let playerAccount = {
+  name: "Luyuan",
+  gold: 100,
+  level: 1,
+  warehouse: ['sword', 'shoes', 'tentacle', 'clock', 'bomb'], 
+  currentLoadout: ['sword', 'shoes'] 
+};
+
+// 🔍 全局篩選與排序設定
+let currentFilter = {
+  type: 'all',    // 'all', 'active', 'passive'
+  rarity: 'all',  // 'all', '1', '2', '3', '4', '5'
+  sort: 'low'    // 預設為 'low' (低到高), 也可以是 'high' (高到低)
+};
+
+// 🔄 更新玩家介面顯示
+function syncAccountUI() {
+  const goldEl = document.getElementById('displayGold');
+  const levelEl = document.getElementById('displayLevel');
+  const countEl = document.getElementById('displayCount');
+  
+  if(goldEl) goldEl.textContent = playerAccount.gold;
+  if(levelEl) levelEl.textContent = playerAccount.level;
+  if(countEl) countEl.textContent = playerAccount.warehouse.length;
+}
+
+function createFilterUI(targetId, refreshFunc) {
+  const container = document.getElementById(targetId);
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:0.5rem; background:rgba(0,0,0,0.4); padding:0.8rem; border-bottom:1px solid var(--gold-dk); margin-bottom:0.5rem;">
+      <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+        <span style="font-size:0.6rem; color:var(--parch-dim);">類型:</span>
+        ${['all', 'active', 'passive'].map(t => `
+          <button onclick="setFilter('type', '${t}', ${refreshFunc.name})" 
+            style="font-size:0.6rem; padding:2px 8px; border:1px solid var(--gold-dk); border-radius:10px; 
+            background:${currentFilter.type === t ? 'var(--gold-dk)' : 'transparent'}; 
+            color:${currentFilter.type === t ? 'var(--ink)' : 'var(--parch)'};">
+            ${t === 'all' ? '全部' : t === 'active' ? '⚔️ 主動' : '✨ 被動'}
+          </button>
+        `).join('')}
+      </div>
+      <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+        <span style="font-size:0.6rem; color:var(--parch-dim);">稀有:</span>
+        ${['all', '1', '2', '3', '4', '5'].map(r => `
+          <button onclick="setFilter('rarity', '${r}', ${refreshFunc.name})" 
+            style="font-size:0.6rem; padding:2px 8px; border:1px solid var(--gold-dk); border-radius:10px; 
+            background:${currentFilter.rarity === r ? 'var(--gold-dk)' : 'transparent'}; 
+            color:${currentFilter.rarity === r ? 'var(--ink)' : 'var(--parch)'};">
+            ${r === 'all' ? '全部' : r + '⭐'}
+          </button>
+        `).join('')}
+      </div>
+      <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.05); padding-top:4px; margin-top:4px;">
+        <span style="font-size:0.6rem; color:var(--parch-dim);">整理:</span>
+        ${[
+          {id: 'high', label: '⭐ 高 → 低'},
+          {id: 'low',  label: '⭐ 低 → 高'}
+        ].map(s => `
+          <button onclick="setFilter('sort', '${s.id}', ${refreshFunc.name})" 
+            style="font-size:0.6rem; padding:2px 8px; border:1px solid var(--gold-dk); border-radius:10px; 
+            background:${currentFilter.sort === s.id ? 'var(--gold-dk)' : 'transparent'}; 
+            color:${currentFilter.sort === s.id ? 'var(--ink)' : 'var(--parch)'};">
+            ${s.label}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// 觸發篩選的控制函式
+function setFilter(key, value, refreshCallback) {
+  currentFilter[key] = value;
+  refreshCallback(); // 重新渲染列表
+}
+
+function switchTab(tabId, title) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+  const targetTab = document.getElementById(tabId);
+  if (targetTab) targetTab.style.display = 'block';
+  
+  document.getElementById('currentTabTitle').textContent = title;
+  
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  if (event && event.currentTarget) {
+    event.currentTarget.classList.add('active');
+  }
+  
+  // ⚡ 根據切換到的分頁執行對應刷新
+  if(tabId === 'tabInventory') renderLibrary();
+  if(tabId === 'tabBattle') updateBattleBtn(); // 切換到戰鬥頁時，立刻檢查一次按鈕
+  if(tabId === 'tabShop') renderShop(); // ⚡ 切換到商店頁時刷新清單
+}
+
+  let gameInstanceId = 0;
+// ═════════════════════════════════════════════════════════════════════════════
+//  MODULAR ACCESSORY SYSTEM V2
+//  配件開發框架 - 完整的觸發時機與效果函式庫
+// ═════════════════════════════════════════════════════════════════════════════
+
+const FACES = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+
+// ─────────────────────────────────────────
+//  EFFECT FUNCTIONS (效果函式庫)
+// ─────────────────────────────────────────
+const FX = {
+  // 點數操作
+ addPts: (gs, who, n) => {
+    const val = parseInt(n) || 0;
+    if(who==='player') {
+      gs.pts += val;
+      floatAt(`+${val}`, document.getElementById('myCard'), 'pts');
+    } else {
+      gs.enemyPts += val;
+      // ⚡ 改用更穩定的選擇器抓取對手卡片
+      const enemyCardWrap = document.querySelector('.card-wrap:last-child .action-card');
+      if(enemyCardWrap) floatAt(`+${val}`, enemyCardWrap, 'pts');
+    }
+    renderCard(); // ⚡ 強制重新渲染確保數字立刻變動
+  },
+  
+stealPts: (gs, who, n, label = "奪取") => {
+    const from = who === 'player' ? 'enemy' : 'player';
+    const currentFromPts = (from === 'player' ? gs.pts : gs.enemyPts);
+    const stolen = Math.min(n, currentFromPts);
+    
+    if (from === 'player') gs.pts -= stolen;
+    else gs.enemyPts -= stolen;
+    
+    if (who === 'player') gs.pts += stolen;
+    else gs.enemyPts += stolen;
+    
+    // 這裡不再寫死「反甲」，而是根據傳入的 label 說話
+    if (stolen > 0) {
+      log(`${label}：${who === 'player' ? '你' : '對手'} 奪取了 ${stolen} 點數！`, who === 'player' ? 'good' : 'bad');
+    } else {
+      log(`${label}：目標行動卡已空，未能奪取點數。`, 'system');
+    }
+  },
+  
+  clearPts: (gs, who) => {
+    if(who==='player') gs.pts = 0;
+    else gs.enemyPts = 0;
+    log(`${who==='player'?'⚔':'🤖'} 行動卡點數被清空！`, who==='player'?'bad':'good');
+  },
+  
+  fillCard: (gs, who) => {
+    const max = (who==='player'?gs.face:gs.enemyFace)==='A'?8:24;
+    if(who==='player') gs.pts = max;
+    else gs.enemyPts = max;
+    log(`${who==='player'?'✨':'🤖'} 行動卡直接填滿！`, who==='player'?'good':'bad');
+  },
+
+ splitDie: (gs, targetDice, idx, who) => {
+    const die = targetDice[idx];
+    if (!die) return;
+    
+    const half = die.v / 2;
+    const label = (who === 'player') ? '👤 你' : '🤖 對手';
+    log(`${label} 將 ${FACES[die.v-1]} 分裂為兩個 ${FACES[half-1]}！`, 'spec');
+
+    // 🛡️ 安全的分裂方法：先標記原本的已使用，再補兩顆新的
+    die.u = true; 
+    targetDice.push({ v: half, u: false }, { v: half, u: false });
+  },
+  
+damage: (gs, target, n, label = "攻擊") => {
+  // 1. 強制執行本地扣血：不管是誰的回合，只要這行跑了，螢幕上的血就要扣
+  if (target === 'enemy') {
+    gs.dummyHp = Math.max(0, gs.dummyHp - n);
+    const heartEl = document.getElementById('dummyHearts');
+    if(heartEl) floatAt(`-${n}💀`, heartEl, 'dmg');
+  } else {
+    gs.hp = Math.max(0, gs.hp - n);
+    const heartEl = document.getElementById('hpHearts');
+    if(heartEl) floatAt(`-${n}💀`, heartEl, 'dmg');
+  }
+  
+  // 顯示戰鬥日誌
+  log(`${label}：${target === 'enemy' ? '對手' : '你'} 受到 ${n} 點傷害！`, target === 'enemy' ? 'good' : 'bad');
+
+  // 2. 觸發受傷配件 (例如：反甲)
+  triggerEvent('playerTakeDamage', target, n);
+
+  // 3. 檢查死亡與復活 (例如：不死鳥羽毛)
+  const currentHp = (target === 'player') ? gs.hp : gs.dummyHp;
+  if (currentHp <= 0) {
+    let saved = false;
+    const loadoutToCheck = (target === 'player') ? gs.loadout : gs.enemyLoadout;
+    loadoutToCheck.forEach(id => {
+      const acc = ACCESSORIES.find(a => a.id === id);
+      if (acc?.on?.playerDeath && acc.on.playerDeath(gs, target)) {
+        saved = true;
+      }
+    });
+    // 如果復活了，就停止執行下方的勝負判定
+    if (saved) { renderBattle(); return; }
+  }
+
+  // 4. 勝負宣告：這段「只給發動攻擊的人」執行
+  // 理由：如果不加這個 if，兩台電腦會同時向 Firebase 發送 "我贏了"，會造成混亂
+  if (roomId && myRole === gs.currentTurnPlayer) {
+    const finalOpponentHp = (target === 'enemy') ? gs.dummyHp : gs.hp;
+    if (finalOpponentHp <= 0) {
+      console.log("🏁 我是回合擁有者，偵測到擊殺，正在宣告遊戲結束...");
+      db.ref(`rooms/${roomId}/battle`).update({
+        status: 'game-over',
+        winner: myRole,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  // 刷新畫面
+  renderBattle();
+},
+  
+heal: (gs, who, n, label = "治療") => {
+    if(who === 'player') {
+      gs.hp = Math.min(6, gs.hp + n);
+      floatAt(`+${n}💚`, document.getElementById('hpHearts'), 'heal');
+      log(`${label}：你回復了 ${n} 點血量！`, 'good');
+    } else {
+      gs.dummyHp = Math.min(6, gs.dummyHp + n);
+      floatAt(`+${n}💚`, document.getElementById('dummyHearts'), 'heal');
+      log(`${label}：對手回復了 ${n} 點血量！`, 'good');
+    }
+  },
+  
+  // 骰子操作
+  addDice: (gs, who, n) => {
+    if(who==='player') gs.bonusDice = (gs.bonusDice||0) + n;
+    else gs.enemyBonusDice = (gs.enemyBonusDice||0) + n;
+    log(`${who==='player'?'🎲':'🤖'} 下回合多 ${n} 顆骰子！`, who==='player'?'good':'bad');
+  },
+  
+rerollDie: (gs, dropIdx) => {
+    const targetDie = gs.dice[dropIdx];
+    if (targetDie) {
+      const v = rand(1, 6);
+      targetDie.v = v;
+      targetDie.u = false;
+      
+      // 核心修正：觸發事件並標註來源為 'reroll'
+      triggerEvent('playerDieRolled', v, 'reroll'); 
+      
+      log(`⏰ 鬧鐘響起！點數重置為 ${FACES[v-1]}`, 'good');
+    }
+  },
+  
+  // 翻面操作
+  flipCard: (gs, who) => {
+    if(who==='player') {
+      gs.face = gs.face==='A'?'B':'A';
+      gs.flipCount++;
+    } else {
+      gs.enemyFace = gs.enemyFace==='A'?'B':'A';
+      gs.enemyFlipCount++;
+    }
+    log(`${who==='player'?'🔄':'🤖'} ${who==='player'?'你的':'對手的'}行動卡被翻面！`, who==='player'?'bad':'good');
+  },
+};
+
+// ─────────────────────────────────────────
+//  TRIGGER CHECKER (觸發條件檢查)
+// ─────────────────────────────────────────
+const TRIGGER = {
+  // 升級版：消耗骰子型觸發器
+  consume: (trigger, dice, dropIdx) => {
+    const { faces, count } = trigger;
+
+    // 模式 A：如果你在配件設定了 count (例如鬧鐘)，就只檢查點數是否在 faces 清單內
+    // 如果 faces 包含了 1~6，就等於「任意骰子」
+    if (count === 1 && faces) {
+      const die = dice[dropIdx];
+      if (die && !die.u && faces.includes(die.v)) {
+        return { can: true, indices: [dropIdx] };
+      }
+      return { can: false };
+    }
+
+    // 模式 B：原本的固定配方檢查 (例如魔劍)
+    if (!faces) return { can: false };
+    const avail = {};
+    dice.filter(d => !d.u).forEach(d => avail[d.v] = (avail[d.v] || 0) + 1);
+    for (const f of faces) {
+      if (!avail[f] || avail[f] <= 0) return { can: false };
+      avail[f]--;
+    }
+    const toUse = [];
+    const facesNeeded = [...faces];
+    dice.forEach((d, i) => {
+      if (d.u) return;
+      const idx = facesNeeded.indexOf(d.v);
+      if (idx >= 0) {
+        toUse.push(i);
+        facesNeeded.splice(idx, 1);
+      }
+    });
+    return { can: true, indices: toUse };
+  },
+  
+  // 其餘被動檢查保留...
+  dieValue: (trigger, val) => trigger.value === val,
+  allSame: (trigger, dice) => dice.length >= 2 && dice.every(d => d.v === dice[0].v),
+  sumEven: (trigger, dice) => dice.reduce((a, d) => a + d.v, 0) % 2 === 0,
+  ptsMod: (trigger, pts) => pts > 0 && pts % trigger.divisor === 0,
+};
+
+// ─────────────────────────────────────────
+//  ACCESSORY DEFINITIONS (配件定義)
+// ─────────────────────────────────────────
+const ACCESSORIES = [
+ {
+    id: 'sword',
+    name: '魔劍',
+    icon: '⚔',
+    rarity: 3,
+    type: 'active',
+    req: '⚀ + ⚅（1 + 6）',
+    desc: '消耗骰子1與6，對對手造成2點傷害。',
+
+    trigger: {
+      type: 'consume',
+      faces: [1, 6]
+    },
+    onStore: (v) => log(`📥 魔劍正在吸收點數 ${FACES[v-1]} 的能量...`, 'system'),
+   effect: (gs, who) => {
+    // ⚡ 核心修正：
+      // 如果 who 是 'player' (我自己)，目標就是 'enemy' (我的對手)
+      // 如果 who 是 'enemy' (對手)，目標就是 'player' (我自己)
+      const target = (who === 'player') ? 'enemy' : 'player';
+      const label = (who === 'player') ? "⚔️ 魔劍攻擊" : "📡 對手魔劍";
+      FX.damage(gs, target, 2, label);
+    // 統計數據也要分開
+      if(who === 'player') gs.statAtk++;
+      else gs.enemyStatAtk = (gs.enemyStatAtk || 0) + 1;
+    
+   
+  }
+  },
+    
+  
+  {
+    id: 'mirror',
+    name: '複製魔鏡',
+    icon: '🪞',
+    rarity: 3,
+    type: 'active',
+    req: '⚅（點數6）',
+    desc: '消耗骰子6，下回合多擲2顆骰子。',
+    
+    trigger: {
+      type: 'consume',
+      faces: [6]
+    },
+    
+    effect: (gs, who) => {
+      FX.addDice(gs, who, 2);
+    }
+  },
+
+  {
+    id: 'clock',
+    name: '逆行鬧鐘',
+    icon: '⏰',
+    rarity: 4,
+    type: 'active',
+    req: '任意 1 顆骰子 (每回合限一次)',
+    desc: '消耗任意1顆骰子，重擲得到新骰子。(每回合限一次)',
+    trigger: {
+      type: 'consume',
+      faces: [1,2,3,4,5,6],
+      count: 1,
+      // 核心修正：檢查這回合是否已經用過 (我們把資料存在 gs.usedAccs 裡)
+      check: (gs) => !gs.usedAccs?.includes('clock')
+    },
+   effect: (gs, who, dropIdx) => {
+      const targetDie = gs.dice[dropIdx];
+      if (!targetDie) return;
+      const newVal = rand(1, 6);
+      targetDie.v = newVal;
+      targetDie.u = false; // 鬧鐘重擲後變回彩色
+
+      if (who === 'player') {
+        // ⚡ 第一步：先上傳新的骰子數據
+        db.ref(`rooms/${roomId}/battle`).update({
+          lastDice: gs.dice,
+          diceActionId: Math.random()
+        }).then(() => {
+          // ⚡ 第二步：等數據傳成功後，才發送「動作信號」
+          // 這樣房主收到的時候，他手裡的骰子保證已經是新的點數了
+          db.ref(`rooms/${roomId}/battle/lastAction`).set({
+            type: 'useDieOnAcc',
+            actor: myRole,
+            accId: 'clock',
+            dieIdx: dropIdx,
+            val: newVal,
+            source: 'reroll', 
+            timestamp: Date.now(),
+            actionId: Math.random() // 👈 必加：號號牌
+          });
+        });
+
+        // 本地冷卻處理
+        if(!gs.usedAccs) gs.usedAccs = [];
+        gs.usedAccs.push('clock');
+        log(`⏰ 鬧鐘響起！你重擲出 ${FACES[newVal-1]}`, 'good');
+      } else {
+        // 📡 接收對手鬧鐘時的顯示
+        log(`📡 對手使用了鬧鐘，撥弄了命運...`, 'system');
+      }
+    }
+  },
+  
+{
+    id: 'splitter', 
+    name: '分裂符文', 
+    icon: '☄', 
+    rarity: 5,
+    type: 'active', 
+    req: '偶數骰子 (每回合限一次)',
+    desc: '消耗一顆偶數骰子，將其分裂為兩顆該點數一半的骰子。(每回合限一次)',
+    trigger: {
+      type: 'consume',
+      faces: [2, 4, 6], // 只能用偶數
+      count: 1,
+      // 核心限制：必須是偶數且這回合沒用過
+      check: (gs) => !gs.usedAccs?.includes('splitter')
+    },
+    effect: (gs, who, dropIdx, aiDice) => {
+      // 🛡️ 關鍵修正：判斷現在是誰在分裂，傳入正確的骰子堆
+      if (who === 'player') {
+        FX.splitDie(gs, gs.dice, dropIdx, 'player');
+      } else {
+        // aiDice 是我們從 doEnemyTurn 傳進來的臨時骰子堆
+        FX.splitDie(gs, aiDice, dropIdx, 'enemy');
+      }
+    }
+  },
+
+  {
+    id: 'shoes',
+    name: '疾走鞋',
+    icon: '👟',
+    rarity: 1,
+    type: 'passive',
+    req: '每回合擲骰前',
+    desc: '每回合開始時，行動卡自動 +1 點。',
+    on: {
+      playerTurnStart: (gs, actor) => {
+        FX.addPts(gs, actor, 1);
+        const label = (actor === 'player') ? '👤 你' : '🤖 對手';
+        const logColor = (actor === 'player') ? 'good' : 'bad';
+        log(`👟 ${label} 的疾走鞋：行動卡 +1`, logColor);
+      }
+    }
+  },
+  
+ {
+    id: 'tentacle',
+    name: '觸手',
+    icon: '🐙',
+    rarity: 2,
+    type: 'passive',
+    req: '每擲出⚀',
+    desc: '回合開始時擲骰，每擲出一顆點數 1 的骰子，行動卡自動 +3 點。',
+    on: {
+      playerDieRolled: (gs, actor, val, source) => {
+        if(val === 1 && source === 'start') {
+          FX.addPts(gs, actor, 3);
+          const label = (actor === 'player') ? '👤 你' : '🤖 對手';
+          const logColor = (actor === 'player') ? 'good' : 'bad';
+          log(`🐙 ${label} 的觸手感應到點數 1，行動卡 +3 點！`, logColor);
+        }
+      }
+    }
+  },
+  
+  {
+    id: 'bomb',
+    name: '炸彈',
+    icon: '💣',
+    rarity: 3,
+    type: 'active',
+    req: '⚂ + ⚂（兩顆3）',
+    desc: '消耗兩顆點數3的骰子，對對手造成2點傷害。',
+    
+    trigger: {
+      type: 'consume',
+      faces: [3, 3]
+    },
+    
+    effect: (gs, who) => {
+    const target = (who === 'player') ? 'enemy' : 'player';
+    FX.damage(gs, target, 2, who === 'player' ? "💣 炸彈爆炸" : "📡 對手炸彈");
+    if (who === 'player') {
+        gs.statAtk++;
+      } else {
+        // 確保對手數據也正確增加
+        gs.enemyStatAtk = (gs.enemyStatAtk || 0) + 1;
+      }
+
+  }
+  },
+  
+  {
+    id: 'crystal',
+    name: '預言水晶',
+    icon: '🔮',
+    rarity: 2,
+    type: 'passive',
+    req: '回合結束時（4的倍數）',
+    desc: '回合結束時，若行動卡點數為 4 的倍數，自動 +3 點。',
+    
+    on: {
+      playerTurnEnd: (gs, actor) => {
+        const currentPts = (actor === 'player') ? gs.pts : gs.enemyPts;
+        const label = (actor === 'player') ? '👤 你' : '🤖 對手';
+        // ⚡ 顏色判定
+        const logColor = (actor === 'player') ? 'good' : 'bad';
+
+        if (currentPts > 0 && currentPts % 4 === 0) {
+          FX.addPts(gs, actor, 3);
+          log(`🔮 ${label} 的水晶共鳴！${currentPts} 是 4 的倍數，+3 點！`, logColor);
+        }
+      }
+    }
+  },
+
+{
+    id: 'medal',
+    name: '榮譽獎章',
+    icon: '🏅',
+    rarity: 5,
+    type: 'active',
+    req: '收集 ⚀ ~ ⚅ 兩輪',
+    desc: '投入尚未收集的點數。集齊兩輪 1-6 點直接獲得勝利！(此配件可跨回合累積)',
+    keepStored: true, // 特殊標記：不被回合結束清理
+    trigger: {
+      type: 'consume',
+      faces: [1, 2, 3, 4, 5, 6],
+      count: 1
+    },
+    effect: (gs, who, dropIdx) => {
+      // 邏輯在 useAccessory 處理，這裡檢查獲勝
+      if (gs.medalRounds >= 2) {
+        log('🏅 獎章光芒萬丈！你贏得了最終勝利！', 'good');
+        setTimeout(() => endBattle('dummy'), 1000);
+      }
+    }
+  },
+  {
+    id: 'thorns',
+    name: '荊棘反甲',
+    icon: '🛡️',
+    rarity: 3,
+    type: 'passive',
+    req: '受到傷害時',
+    desc: '每受到 1 點傷害，偷取對手 6 點行動卡點數。',
+    on: {
+      playerTakeDamage: (gs, victim, dmg) => {
+        // victim 是受害者，那麼 who (發動偷取的人) 就是 victim
+        // FX.stealPts 會自動處理「對手是誰」
+        FX.stealPts(gs, victim, dmg * 6, "🛡️ 荊棘反甲");
+      }
+    }
+  },
+ {
+    id: 'fate',
+    name: '命運干擾',
+    icon: '🎭',
+    rarity: 4,
+    type: 'active',
+    req: '任意骰子(每回合限一次)',
+    desc: '消耗一顆骰子，指定對手下回合第一顆骰子必為該點數。(每回合限一次)',
+    trigger: { type: 'consume', faces: [1,2,3,4,5,6], count: 1, check: (gs) => !gs.usedAccs?.includes('fate') },
+    effect: (gs, who, dropIdx) => {
+      let val;
+      if (dropIdx !== undefined && gs.dice[dropIdx]) {
+        val = gs.dice[dropIdx].v;
+      } else {
+        const acc = ACCESSORIES.find(a => a.id === 'fate');
+        val = acc.stored[acc.stored.length - 1]; 
+      }
+      if(!gs.usedAccs) gs.usedAccs = [];
+       gs.usedAccs.push('fate');
+
+      // 簡化判定與文字
+      if (who === 'player') {
+        gs.enemyNextDie = val;
+        log(`🎭 命運干擾：對手 下回合第一顆必出 ${FACES[val-1]}`, 'spec');
+      } else {
+        gs.playerNextDie = val;
+        log(`🎭 命運干擾：你 下回合第一顆必出 ${FACES[val-1]}`, 'spec');
+      }
+      log('🎭 命運干擾本回合已進入冷卻', 'system');
+    }
+  },
+  {
+  id: 'phoenix',
+  name: '不死鳥羽毛',
+  icon: '🐦‍🔥',
+  rarity: '5',
+  type: 'passive',
+  req: '受到致命傷時',
+  desc: '當血量歸零時，立即恢復至 1 點血量（每場戰鬥僅限一次）。',
+  
+  
+  on: {
+    playerDeath: (gs, victim) => {
+      // 檢查該角色是否已經用過羽毛 (動態建立標記，如 playerPhoenixUsed)
+      const usedKey = victim === 'player' ? 'playerPhoenixUsed' : 'enemyPhoenixUsed';
+      
+      if (!gs[usedKey]) {
+        if (victim === 'player') gs.hp = 1; else gs.dummyHp = 1;
+        gs[usedKey] = true;
+        
+        const name = victim === 'player' ? '你' : '對手';
+        log(`✨ ${name} 的「不死鳥羽毛」發出紅光，重生了！`, 'spec');
+        return true; // 回傳 true 給 damage 函式，攔截死亡
+      }
+      return false;
+    }
+  }
+},
+
+];
+
+const CATEGORIES = [
+  {
+    label: '⚔ 主動配件', 
+    ids: ['sword', 'mirror', 'clock', 'bomb', 'splitter', 'medal', 'fate'] 
+  },
+  {
+    label: '✨ 被動配件', 
+    ids: ['shoes', 'tentacle', 'crystal', 'thorns', 'phoenix'] 
+  }
+];
+
+// ─────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────
+let loadout = [];
+let gs = {};
+
+// ─────────────────────────────────────────
+//  ENGINE: TRIGGER SYSTEM
+// ─────────────────────────────────────────
+function triggerEvent(event, actor = 'player', ...args) {
+  // actor 代表現在是誰在擲骰或受傷 (player 或 enemy)
+  const currentLoadout = (actor === 'player') ? gs.loadout : gs.enemyLoadout;
+  
+  currentLoadout.forEach(id => {
+    const acc = ACCESSORIES.find(a => a.id === id);
+    if(!acc || !acc.on || !acc.on[event]) return;
+    
+    // ⚡ 核心修正：直接傳入 gs 與剩餘參數，不再把 'player' 字串塞進去當第一個參數
+    acc.on[event](gs, ...args, actor); 
+  });
+}
+
+// 🛡️ 聯網對戰架構：通用的帳本清理函式
+function clearAllLedgers() {
+  if (!gs || !gs.playerStored || !gs.enemyStored) return;
+
+  [ {list: gs.loadout, ledger: gs.playerStored, name: "👤 [你]"}, 
+    {list: gs.enemyLoadout, ledger: gs.enemyStored, name: "🤖 [對手]"}
+  ].forEach(group => {
+    group.list.forEach(id => {
+      const accId = (typeof id === 'string') ? id : id.id;
+      const acc = ACCESSORIES.find(a => a.id === accId);
+      
+      // ⚡ 只有在裡面「真的有東西」且「不是榮譽獎章」時，才執行清理與播報
+      if (acc && !acc.keepStored && group.ledger[accId] && group.ledger[accId].length > 0) {
+        log(`🧹 ${group.name} 的 ${acc.name} 能量消散了...`, 'system');
+        group.ledger[accId] = []; 
+      }
+    });
+  });
+}
+
+function canUseAccessory(acc, dice, dropIdx) {
+  if (!acc.trigger) return false;
+  const die = dice[dropIdx];
+  if (!die || die.u) return false;
+
+  // 1. 檢查次數限制
+  if (acc.trigger.check && !acc.trigger.check(gs)) return false;
+
+  const totalNeeded = acc.trigger.count || acc.trigger.faces.length;
+  
+  // 2. A: 單顆模式 (依然維持防呆，點數不對不亮框)
+  if (totalNeeded === 1) {
+    return acc.trigger.faces.includes(die.v);
+  }
+
+  // 3. B: 多顆模式 (魔劍、炸彈)
+  // 核心修正：如果「儲能中」，任何點數都亮框，這樣玩家才能丟入「錯誤骰子」觸發彈出邏輯
+  if (acc.stored && acc.stored.length > 0) {
+    return true; 
+  }
+
+  // 若尚未儲能，則第一顆必須符合配方才亮框
+  return acc.trigger.faces.includes(die.v);
+}
+function useAccessory(acc, dice, dropIdx, who = 'player') {
+  if (!acc.trigger) return;
+  const die = dice[dropIdx];
+  if (!die || die.u) return;
+
+  const coolDownList = (who === 'player') ? gs.usedAccs : gs.enemyUsedAccs;
+  if (coolDownList && coolDownList.includes(acc.id)) {
+    if (who === 'player') log(`🚫 「${acc.name}」冷卻中，本回合已使用過。`, 'bad');
+    return;
+  }
+
+  const ledger = (who === 'player') ? gs.playerStored : gs.enemyStored;
+  if (!ledger[acc.id]) ledger[acc.id] = []; 
+  const stored = ledger[acc.id];
+  const ownerLabel = (who === 'player') ? '👤 你' : '🤖 對手';
+  const logColor = (who === 'player') ? 'good' : 'bad';
+
+  if (acc.id === 'medal') {
+    if (stored.includes(die.v)) {
+      if(who === 'player') log(`❌ 點數 ${FACES[die.v-1]} 這一輪已收集過！`, 'bad');
+      return;
+    }
+    die.u = true;
+    stored.push(die.v);
+    if (stored.length === 6) {
+      if (who === 'player') gs.medalRounds = (gs.medalRounds || 0) + 1;
+      ledger[acc.id] = []; 
+      log(`🏅 ${ownerLabel} 的獎章完成一輪！`, logColor);
+      if (acc.effect) acc.effect(gs, who, dropIdx, dice);
+    } else {
+      if(who === 'player') log(`📥 ${ownerLabel} 收集點數 ${FACES[die.v-1]} (${stored.length}/6)`, 'system');
+    }
+    renderBattle();
+    return;
+  }
+
+  const totalNeeded = acc.trigger.count || acc.trigger.faces.length;
+  const neededNow = [...acc.trigger.faces];
+  stored.forEach(val => {
+    const found = neededNow.indexOf(val);
+    if(found >= 0) neededNow.splice(found, 1);
+  });
+
+  if (!neededNow.includes(die.v)) {
+    if(who === 'player') log(`❌ 骰面不符，${acc.name} 充能失敗！`, 'bad');
+    return;
+  }
+
+  die.u = true; 
+  stored.push(die.v); 
+
+  if (stored.length === totalNeeded) {
+    log(`${ownerLabel} 施展了 ${acc.icon} ${acc.name} 的力量！`, logColor); 
+    if (coolDownList) coolDownList.push(acc.id);
+    if (acc.effect) acc.effect(gs, who, dropIdx, dice);
+    ledger[acc.id] = []; 
+  } else {
+    if(who === 'player') log(`📥 ${ownerLabel} 注入能量 ${FACES[die.v-1]} (${stored.length}/${totalNeeded})`, 'system');
+  }
+}
+
+// 輔助函式也要同步更新
+function checkStoredReady(acc, dice) {
+  if (!acc.stored || acc.stored.length === 0) return false;
+  const needed = [...acc.trigger.faces];
+  const currentValues = acc.stored.map(idx => dice[idx].v);
+  
+  if (currentValues.length < needed.length) return false;
+
+  currentValues.forEach(v => {
+    const idx = needed.indexOf(v);
+    if (idx >= 0) needed.splice(idx, 1);
+  });
+  return needed.length === 0;
+}
+// ─────────────────────────────────────────
+//  SCREENS
+// ─────────────────────────────────────────
+function goTo(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('out'));
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      document.getElementById(id).classList.remove('out');
+      if(id==='prepScreen') renderPrep();
+    });
+  });
+}
+
+// ─────────────────────────────────────────
+//  PREP SCREEN
+// ─────────────────────────────────────────
+function renderPrep(){
+  syncAccountUI();
+  renderSlots();
+  renderLibrary();
+  updateBattleBtn();
+}
+
+function renderSlots(){
+  const row = document.getElementById('equippedRow');
+  // ⚡ 核心修正：如果找不到裝備欄（因為我們移除了），就直接結束函式，不要報錯
+  if (!row) return;
+
+  row.innerHTML='';
+  for(let i=0;i<5;i++){
+    const id = loadout[i];
+    const acc = id ? ACCESSORIES.find(a=>a.id===id) : null;
+    const s = document.createElement('div');
+    s.className = 'eq-slot'+(acc?' filled':'');
+    if(acc){
+      s.innerHTML=`<span class="slot-ico">${acc.icon}</span><div class="slot-nm">${acc.name}</div><button class="remove-x" onclick="removeAcc('${acc.id}',event)">✕</button>`;
+    } else {
+      s.innerHTML=`<span class="slot-empty-txt">空槽</span>`;
+    }
+    row.appendChild(s);
+  }
+  document.getElementById('slotCount').textContent = loadout.length;
+}
+function renderLibrary() {
+  const body = document.getElementById('prepBody');
+  if (!body) return;
+  
+  // 1. 清空並初始化容器
+  body.innerHTML = '<div id="invFilter"></div>'; 
+  createFilterUI('invFilter', renderLibrary); 
+
+  CATEGORIES.forEach(cat => {
+    // 2. 篩選與排序
+    let filteredIds = cat.ids.filter(id => {
+      const acc = ACCESSORIES.find(a => a.id === id);
+      const matchType = (currentFilter.type === 'all' || acc.type === currentFilter.type);
+      const matchRarity = (currentFilter.rarity === 'all' || acc.rarity.toString() === currentFilter.rarity);
+      return matchType && matchRarity;
+    });
+
+    filteredIds.sort((aId, bId) => {
+      const accA = ACCESSORIES.find(a => a.id === aId);
+      const accB = ACCESSORIES.find(a => a.id === bId);
+      return currentFilter.sort === 'high' ? accB.rarity - accA.rarity : accA.rarity - accB.rarity;
+    });
+
+    if (filteredIds.length === 0) return;
+
+    // 3. 建立區塊
+    const sec = document.createElement('div');
+    sec.className = 'cat-section';
+    sec.innerHTML = `<div class="cat-label"><span></span>${cat.label}<span></span></div>`;
+    
+    const grid = document.createElement('div');
+    grid.className = 'acc-grid';
+
+    filteredIds.forEach(id => {
+      const acc = ACCESSORIES.find(a => a.id === id);
+      const isOwned = playerAccount.warehouse.includes(id); 
+      const eq = loadout.includes(id);
+      const full = loadout.length >= 5 && !eq;
+
+      const card = document.createElement('div');
+      // ⚡ 修正：確保 class 包含 acc-card 基礎樣式
+      card.className = `acc-card ${eq ? 'equipped' : ''} ${full ? 'maxed' : ''} ${!isOwned ? 'locked' : ''}`;
+
+      card.innerHTML = `
+        <div class="equipped-tick">✓</div>
+        ${!isOwned ? '<div class="locked-badge">未解鎖</div>' : ''}
+        <div class="acc-top">
+          <div class="acc-icon-wrap">${acc.icon}</div>
+          <div class="acc-meta">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <div class="acc-name">${acc.name}</div>
+              <div class="rarity-star-v2">${'★'.repeat(acc.rarity)}</div>
+            </div>
+            <div class="acc-type-badge ${acc.type === 'active' ? 'badge-active' : 'badge-passive'}">
+              ${acc.type === 'active' ? '⚡主動' : '✨被動'}
+            </div>
+          </div>
+        </div>
+        <div class="acc-desc">${acc.desc}</div>
+      `;
+
+      card.onclick = () => showTip(acc); // 在背包頁點擊，就只是看詳細說明
+      grid.appendChild(card);
+
+    });
+
+    sec.appendChild(grid);
+    body.appendChild(sec);
+  });
+}
+
+function renderShop() {
+    const shopEl = document.getElementById('tabShop');
+    if (!shopEl) return;
+    
+    shopEl.innerHTML = `
+        <h2 style="text-align:center; color:var(--gold-lt); margin-bottom:1rem; font-family:'Uncial Antiqua';">每日特惠</h2>
+        <div id="shopFilter"></div>
+    `;
+
+    createFilterUI('shopFilter', renderShop);
+
+    const grid = document.createElement('div');
+    grid.className = 'shop-grid';
+
+    let toSell = ACCESSORIES.filter(acc => {
+        const alreadyOwned = playerAccount.warehouse.includes(acc.id); // 檢查是否已在倉庫
+        const matchType = (currentFilter.type === 'all' || acc.type === currentFilter.type);
+        const matchRarity = (currentFilter.rarity === 'all' || acc.rarity.toString() === currentFilter.rarity);
+        
+        return !alreadyOwned && matchType && matchRarity; // 只有「未擁有」才顯示
+    });
+
+    toSell.sort((a, b) => currentFilter.sort === 'high' ? b.rarity - a.rarity : a.rarity - b.rarity);
+
+    if (toSell.length === 0) {
+        shopEl.innerHTML += '<p style="text-align:center; color:var(--parch-dim); padding:2rem;">🎉 所有配件已售罄！</p>';
+        return;
+    }
+
+    toSell.forEach(acc => {
+        const price = acc.rarity * 50;
+        const item = document.createElement('div');
+        item.className = 'shop-item';
+        const typeLabel = acc.type === 'active' ? '⚡主動' : '✨被動';
+        const typeClass = acc.type === 'active' ? 'badge-active' : 'badge-passive';
+
+        item.innerHTML = `
+    <div style="font-size:2rem; min-width:50px; text-align:center;">${acc.icon}</div>
+    <div class="shop-info">
+        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <div style="color:var(--gold-lt); font-weight:bold;">${acc.name}</div>
+            <div class="acc-type-badge ${typeClass}" style="font-size:0.5rem; padding:1px 4px; border-radius:2px;">${typeLabel}</div>
+            <div class="rarity-star-v2">${'★'.repeat(acc.rarity)}</div>
+        </div>
+        <div style="font-size:0.65rem; color:var(--parch-dim); margin-top:4px;">${acc.desc}</div>
+        <div style="color:#f1c40f; font-size:0.8rem; margin-top:6px; font-weight:bold;">💰 ${price}</div>
+    </div>
+    <button class="btn-buy" onclick="buyItem('${acc.id}', ${price})">
+        購買
+    </button>
+`;
+        grid.appendChild(item);
+    });
+    shopEl.appendChild(grid);
+}
+
+// ⚡ 自訂提示函式
+function showTavernMsg(msg) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  
+  const el = document.createElement('div');
+  el.className = 'toast-msg';
+  el.textContent = msg;
+  container.appendChild(el);
+  
+  // 3秒後自動從 HTML 中移除，保持乾淨
+  setTimeout(() => el.remove(), 3000);
+}
+
+// 🛒 修改後的購買函式
+function buyItem(id, price) {
+  if (playerAccount.gold >= price) {
+    playerAccount.gold -= price;
+    playerAccount.warehouse.push(id);
+    
+    const acc = ACCESSORIES.find(a => a.id === id);
+    showTavernMsg(` 好眼光 ${acc.name} 歸你了 ✨`);
+    
+    syncAccountUI();
+    renderShop();
+    renderLibrary();
+    saveAccountToCloud();
+  } else {
+  // 💸 錢不夠：計算差額並給予提示
+    const missing = price - playerAccount.gold;
+    showTavernMsg(`❌ 金幣不足！你還需要 ${missing} 枚金幣。`);
+  }
+}
+        
+        // 3. 核心動作：同步更新與存檔
+        syncAccountUI();      // 更新錢包顯示
+        renderShop();        // ⚡ 關鍵：讓商品立刻從貨架消失
+        renderLibrary();     // 更新背包清單
+        saveAccountToCloud(); // 💾 同步到 Firebase 雲端
+        
+        // 4. 裝飾性提示
+        
+
+function addAcc(id){
+  if(loadout.length<5 && !loadout.includes(id)){
+    loadout.push(id);
+    renderPrep();
+    syncLoadoutToCloud();
+  }
+}
+function removeAcc(id,e){
+  if(e)e.stopPropagation();
+  loadout = loadout.filter(x=>x!==id);
+  renderPrep();
+  syncLoadoutToCloud();
+}
+
+// 核心同步工具
+function syncLoadoutToCloud() {
+  if (!roomId || !myRole) return;
+  // 房主更新 host_loadout，加入者更新 guest_loadout
+  const updates = {};
+  updates[`${myRole}_loadout`] = loadout;
+  db.ref('rooms/' + roomId).update(updates);
+}
+
+function updateBattleBtn(){
+  const btn = document.getElementById('battleBtn');
+  
+  // 🛡️ 專業改法：如果找不到，先在後台留個便條，但不要讓程式崩潰
+  if (!btn) {
+    console.warn("⚠️ [Debug] 找不到戰鬥按鈕。如果你現在不在『戰鬥分頁』，這是正常的。");
+    return; 
+  }
+
+  btn.disabled = loadout.length === 0;
+  
+  const hint = document.getElementById('battleHint');
+  if (hint) {
+    hint.textContent = loadout.length === 0 ? '請至少選擇 1 件配件' : `已選 ${loadout.length} 件配件，準備就緒！`;
+  }
+}
+
+// ─────────────────────────────────────────
+//  BATTLE
+// ─────────────────────────────────────────
+function startBattle(){
+  gameInstanceId++;
+  if (typeof gs !== 'undefined') {
+    gs.isAIThinking = false;
+  }
+  // 1. 初始化配件與清空 Log
+  const logEl = document.getElementById('battleLog');
+  if(logEl) logEl.innerHTML = '';
+  ACCESSORIES.forEach(acc => { acc.stored = []; });
+
+  // 2. 隨機選取對手配件
+  const aiPool = ACCESSORIES.filter(a => a.id !== 'medal').map(a => a.id);
+  const enemyLoadout = aiPool.sort(() => 0.5 - Math.random()).slice(0, 3); 
+
+  // 3. 核心狀態初始化
+  // 尋找 gs = { ... }
+gs = {
+    hp:6, dummyHp:6,
+    pts:0, face:'A',
+    enemyPts:0, enemyFace:'A',
+    flipCount:0, enemyFlipCount:0,
+    statAtk:0, statHeal:0, statTurn:1,
+    bonusDice:0, enemyBonusDice:0,
+    phase:'roll', 
+    rolled:false,
+    dice:[],
+    loadout:[...loadout],
+    enemyLoadout: enemyLoadout,
+    
+    // 🛡️ 聯網核心：建立雙方獨立帳本
+    playerStored: {}, // 格式範例：{ 'sword': [1, 6] }
+    enemyStored: {},  
+    
+    enemyUsedAccs: [],
+    isAIThinking: false
+  };
+
+  // 4. 清空對手配件槽
+  gs.enemyLoadout.forEach(id => {
+    const acc = ACCESSORIES.find(a => a.id === id);
+    if (acc) acc.stored = [];
+  });
+
+  // 5. 切換畫面並「立即」刷新一次狀態
+  goTo('battleScreen');
+  
+requestAnimationFrame(() => {
+    renderBattle(); 
+    updateCtrl(); // 這裡會根據新的 gs.phase='roll' 解鎖按鈕
+  });
+
+  // 這裡稍微延遲以確保畫面已經切換過去，然後執行完整的渲染
+  setTimeout(()=>{
+    renderBattle(); 
+    updateCtrl(); // 渲染後立即更新按鈕狀態，這才是最穩的
+    const enemyNames = enemyLoadout.map(id => {
+      const a = ACCESSORIES.find(x => x.id === id);
+      return a ? a.name : '未知';
+    }).join(', ');
+    log('⚜ 練習開始！對手已裝備：' + enemyNames, 'system');
+  }, 100);
+}
+
+function quitBattle() {
+  if (!confirm("確定要離開這局戰鬥並回到酒館嗎？")) return;
+
+  const roomRef = db.ref('rooms/' + roomId);
+  
+  // ⚡ 根據身分執行不同的打掃邏輯
+  if (myRole === 'host') {
+    // 房主離開 -> 直接解散房間 (最暴力也最乾淨)
+    roomRef.remove();
+  } else {
+    // 客人離開 -> 僅移除客人的 ID 並將房間設回等待中
+    roomRef.update({
+      guest: null,
+      guest_ready: null,
+      status: 'waiting'
+    });
+  }
+
+  // 本地重置
+  isInBattle = false;
+  roomId = null;
+  myRole = null;
+  gameInstanceId++;
+  
+  goTo('introScreen');
+}
+function renderBattle(){
+  renderHP();
+  renderCard();
+  renderAccBar();
+  renderEnemyAccIcons(); // 新增這一行
+  renderDice();
+  renderPhase();
+  renderStats();
+  updateCtrl();
+}
+
+function renderHP(){
+  const ph = document.getElementById('hpHearts');
+  const dh = document.getElementById('dummyHearts');
+  ph.innerHTML=''; dh.innerHTML='';
+  for(let i=0;i<6;i++){
+    const h1=document.createElement('span');h1.className='h-heart'+(i>=gs.hp?' empty':'');h1.textContent='❤';
+    const h2=document.createElement('span');h2.className='h-heart'+(i>=gs.dummyHp?' empty':'');h2.textContent='❤';
+    ph.appendChild(h1); dh.appendChild(h2);
+  }
+}
+
+function renderCard(){
+  // A. 我的行動卡 (左側)
+  const max = gs.face==='A'?8:24;
+  const pct = Math.min(100,(gs.pts/max)*100);
+  document.getElementById('myPts').textContent = isNaN(gs.pts) ? 0 : gs.pts;
+  document.getElementById('myMax').textContent = max;
+  document.getElementById('myBar').style.width = pct+'%';
+  document.getElementById('myFace').textContent = gs.face+'面';
+  document.getElementById('myFace').className = `card-face face-${gs.face}`;
+  
+  // B. 右側戰局面板 (對手)
+  const eMax = gs.enemyFace === 'A' ? 8 : 24; // ⚡ 這裡修正對手的目標點數判定
+  const ePct = Math.min(100, (gs.enemyPts / eMax) * 100);
+  
+  const ePtsEl = document.getElementById('enemyPts');
+  const eBarEl = document.getElementById('enemyBar');
+  const eFaceEl = document.getElementById('enemyFace');
+  const eMaxEl = document.getElementById('enemyMax'); // ⚡ 確保這個 ID 也被更新
+  
+  if(ePtsEl) ePtsEl.textContent = isNaN(gs.enemyPts) ? 0 : gs.enemyPts;
+  if(eBarEl) eBarEl.style.width = ePct + '%';
+  if(eFaceEl) eFaceEl.textContent = gs.enemyFace;
+  if(eMaxEl) eMaxEl.textContent = eMax; // ⚡ 同步更新畫面上的目標點數
+
+  const ready = gs.pts >= max;
+  const card = document.getElementById('myCard');
+  if(card) card.className = 'action-card' + (ready ? ' ready' : '');
+  
+  document.getElementById('atkBtn').disabled = !ready||gs.phase!=='action';
+  document.getElementById('healBtn').disabled = !ready||gs.phase!=='action';
+}
+
+function renderAccBar() {
+  const myBar = document.getElementById('myAccBar');
+  const enemyBar = document.getElementById('enemyAccBar');
+  if (!myBar || !enemyBar) return;
+  
+  myBar.innerHTML = '';
+  enemyBar.innerHTML = '';
+
+  // 渲染玩家配件
+  gs.loadout.forEach(id => {
+    myBar.appendChild(createAccChip(id, 'player'));
+  });
+
+  // 渲染對手配件
+  gs.enemyLoadout.forEach(id => {
+    enemyBar.appendChild(createAccChip(id, 'enemy'));
+  });
+}
+
+function createAccChip(id, owner) {
+  const acc = ACCESSORIES.find(a => a.id === id);
+  if (!acc) return document.createElement('div');
+  
+  // 🛡️ 從正確的帳本拿進度
+  const ledger = (owner === 'player') ? gs.playerStored : gs.enemyStored;
+  const stored = ledger ? (ledger[id] || []) : [];
+
+  const chip = document.createElement('div');
+  const isStoring = stored.length > 0; // 改用帳本長度判定
+  
+  chip.className = 'acc-chip' + (isStoring ? ' storing' : '');
+  chip.id = `chip_${owner}_${id}`;
+  
+  // 死亡或消耗判定
+  const isUsed = (id === 'phoenix' && (owner === 'player' ? gs.playerPhoenixUsed : gs.enemyPhoenixUsed));
+  if (isUsed) chip.classList.add('exhausted');
+
+  const totalNeeded = acc.trigger?.count || (acc.trigger?.faces ? acc.trigger.faces.length : 0);
+  const progressText = (totalNeeded > 1) ? ` (${stored.length}/${totalNeeded})` : '';
+
+  chip.innerHTML = `
+    <div class="chip-ico">${acc.icon}</div>
+    <div class="chip-nm">${acc.name}${progressText}</div>
+    ${isStoring && owner === 'player' ? '<div style="font-size:0.4rem; color:var(--ember-glow); margin-top:2px;">[點擊退還]</div>' : ''}
+    ${acc.type === 'passive' ? '<div class="chip-passive">被動</div>' : ''}
+  `;
+
+  // 在 chip.onclick 的 if (owner === 'player' && isStoring) 裡面修改：
+chip.onclick = () => {
+    if (owner === 'player' && isStoring) {
+      // 1. ⚡ 聯網廣播：告訴對手我要收回這個配件裡的骰子
+      db.ref(`rooms/${roomId}/battle/lastAction`).set({
+        type: 'refundAcc',
+        actor: myRole,
+        accId: id,
+        timestamp: Date.now(),
+        actionId: Math.random()
+      });
+
+      // 2. 本地立即反應
+      stored.forEach(val => {
+        const target = gs.dice.find(d => d.u && d.v === val);
+        if (target) target.u = false;
+      });
+      ledger[id] = []; 
+      log(`📤 已從 ${acc.name} 退回骰子`, 'system');
+      renderBattle();
+    } else {
+      showTip(acc);
+    }
+};
+  return chip;
+}
+
+function renderEnemyAccIcons() {
+  const titleEl = document.querySelector('.bh-title');
+  if (titleEl && gs.enemyLoadout) {
+    const icons = gs.enemyLoadout.map(id => {
+        const acc = ACCESSORIES.find(a=>a.id===id);
+        return acc ? acc.icon : '';
+    }).join(' ');
+    titleEl.innerHTML = `🎲 迷霧酒館 <span style="font-size:0.6rem; margin-left:10px; color:var(--parch-dim)">對手裝備: ${icons}</span>`;
+  }
+}
+
+function renderDice(){
+  const tray = document.getElementById('diceTray');
+  if(!tray) return;
+  tray.innerHTML = '';
+  
+  if(!gs.rolled){
+    tray.innerHTML = '<div style="font-family:\'IM Fell English\',serif;font-style:italic;font-size:.8rem;color:var(--leather-lt)">按「擲骰」開始本回合</div>';
+    return;
+  }
+
+  // ⚡ 核心邏輯變更：判斷這顆骰子現在對「你」來說是不是鎖定的
+  // 鎖定條件：1. 不是你的回合 OR 2. 遊戲狀態標記為鎖定 (如等待動畫中)
+  const isOpponentTurn = (myRole !== gs.currentTurnPlayer);
+
+  gs.dice.forEach((die, i) => {
+    const el = document.createElement('div');
+    
+    // 💡 這裡把原本的 isAIThinking 換成 isOpponentTurn
+    const isLocked = isOpponentTurn || gs.isAIThinking; 
+    
+    el.className = 'die' + (die.u ? ' used' : '') + (isLocked ? ' locked' : '');
+    el.innerHTML = FACES[die.v - 1] + `<span class="die-val">${die.v}</span>`;
+    el.dataset.idx = i;
+
+    // 🔒 只有在「沒被使用」且「不是對手回合」時，才允許你拖拽
+    if(!die.u && !isLocked) {
+      setupDrag(el, i);
+    }
+    tray.appendChild(el);
+  });
+}
+
+function renderPhase(){
+  const labels=['擲骰','行動','結束'];
+  const phases=['roll','action','end'];
+  const cur=phases.indexOf(gs.phase);
+  labels.forEach((l,i)=>{
+    const el=document.getElementById('ph'+i);
+    el.textContent=l;
+    el.className='phase-pill '+(i<cur?'pp-done':i===cur?'pp-active':'pp-inactive');
+  });
+  document.getElementById('bh_turn').textContent=`第${gs.statTurn}回合 · ${gs.phase==='roll'?'擲骰階段':gs.phase==='action'?'行動階段':'結束階段'}`;
+}
+
+function renderStats(){
+  // 防呆：如果元素不存在就不執行
+  const statFlip = document.getElementById('statFlip');
+  if (!statFlip) return;
+  
+  // 翻轉次數：玩家 / 對手
+  statFlip.textContent = `${gs.flipCount} / ${gs.enemyFlipCount || 0}`;
+  
+  // 攻擊次數：玩家 / 對手
+  document.getElementById('statAtk').textContent = gs.statAtk;
+  document.getElementById('statEnemyAtk').textContent = gs.enemyStatAtk || 0;
+  
+  // 回血次數：玩家 / 對手
+  document.getElementById('statHeal').textContent = gs.statHeal;
+  document.getElementById('statEnemyHeal').textContent = gs.enemyStatHeal || 0;
+  
+  document.getElementById('statTurn').textContent = gs.statTurn;
+}
+
+function updateCtrl() {
+  const rollBtn = document.getElementById('rollBtn');
+  const endBtn = document.getElementById('endBtn');
+  if (!rollBtn || !endBtn) return;
+
+  const isMyTurn = (myRole === gs.currentTurnPlayer);
+
+  // 1. 擲骰按鈕：必須是我的回合、在擲骰階段、且還沒擲過
+  const canRoll = isMyTurn && gs.phase === 'roll';
+  rollBtn.disabled = !canRoll;
+  rollBtn.style.opacity = canRoll ? "1" : "0.3";
+  rollBtn.style.pointerEvents = canRoll ? "auto" : "none";
+  
+  // 2. 結束按鈕：必須是我的回合、且在行動階段
+  const canEnd = isMyTurn && gs.phase === 'action';
+  endBtn.disabled = !canEnd;
+  endBtn.style.opacity = canEnd ? "1" : "0.3";
+  endBtn.style.pointerEvents = canEnd ? "auto" : "none";
+}
+// ─────────────────────────────────────────
+//  ROLL
+// ─────────────────────────────────────────
+function doRoll(){
+  if (gs.phase !== 'roll' || myRole !== gs.currentTurnPlayer) return;
+  
+  const n = 2 + (gs.bonusDice || 0);
+  gs.bonusDice = 0;
+  const newDice = [];
+  for(let i=0; i<n; i++) {
+    newDice.push({ v: rand(1, 6), u: false });
+  }
+
+  // ⚡ 修正這裡：直接傳入數值，actor 會自動使用預設值 'player'
+  triggerEvent('playerTurnStart', 'player'); 
+  newDice.forEach(d => triggerEvent('playerDieRolled', d.v, 'start'));
+
+  const dId = Math.random();
+  gs.diceActionId = dId; 
+  gs.dice = newDice;
+  gs.rolled = true;
+  gs.phase = 'action';
+
+  db.ref(`rooms/${roomId}/battle`).update({
+    lastDice: newDice,
+    diceActionId: dId,
+    timestamp: Date.now()
+  });
+
+  db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
+  
+  renderBattle();
+}
+
+// ─────────────────────────────────────────
+//  ACTION
+// ─────────────────────────────────────────
+function useDieOnCard(idx){
+  // 🔒 安全檢查：不是我的回合不能發動
+  if (myRole !== gs.currentTurnPlayer || gs.phase !== 'action') return;
+  
+  const die = gs.dice[idx]; 
+  if(!die || die.u) return;
+
+  // 1. ⚡ [新增這行] 立即在本地增加操作者的能量點數
+  gs.pts += die.v;
+  // 2. 標記這顆骰子在本地已使用
+  die.u = true;
+
+  // 3. 廣播給對手
+  db.ref(`rooms/${roomId}/battle/lastAction`).set({
+    type: 'useDieOnCard',
+    actor: myRole,
+    dieIdx: idx,
+    val: die.v,
+    timestamp: Date.now(),
+    actionId: Math.random() // 👈 新增號碼牌
+  });
+  
+  db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
+
+  log(`📥 你使用了骰子 ${FACES[die.v-1]}，轉換為能量`, 'player');
+  renderBattle(); 
+}
+
+function useDieOnAcc(idx, accId) {
+  // 🔒 權限檢查：只有輪到你，且在行動階段才能觸發
+  if (myRole !== gs.currentTurnPlayer || gs.phase !== 'action') return;
+  
+  const acc = ACCESSORIES.find(a => a.id === accId);
+  if (!acc || acc.type === 'passive') return;
+
+  // 1. 檢查是否能用 (原本的 logic)
+  if (!canUseAccessory(acc, gs.dice, idx)) {
+    // 讓晶片震動一下 (原本的動畫)
+    const chip = document.getElementById('chip_player_' + accId);
+    if(chip) {
+      chip.style.animation = 'none';
+      chip.offsetHeight; 
+      chip.style.animation = 'chipBoom .3s ease-out';
+    }
+    return;
+  }
+
+  // 2. ⚡ 聯網核心：告訴雲端你對哪個配件做了什麼
+  db.ref(`rooms/${roomId}/battle/lastAction`).set({
+    type: 'useDieOnAcc',
+    actor: myRole,
+    dieIdx: idx,
+    accId: accId,
+    val: gs.dice[idx].v,
+    timestamp: Date.now(),
+    actionId: Math.random()
+  });
+
+  db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
+
+  // 3. 本地立即反應：呼叫 useAccessory 處理邏輯
+  useAccessory(acc, gs.dice, idx, 'player'); 
+  
+  renderBattle();
+  checkWin();
+}
+
+function useCard(type){
+  const max = gs.face === 'A' ? 8 : 24;
+  if (gs.pts < max || gs.phase !== 'action' || myRole !== gs.currentTurnPlayer) return;
+  
+  gs.pts -= max;
+  gs.face = gs.face === 'A' ? 'B' : 'A';
+  gs.flipCount = (gs.flipCount || 0) + 1;
+  
+  // ⚡ 聯網核心：加入 actionId
+  db.ref(`rooms/${roomId}/battle/lastAction`).set({
+    type: 'useCard',
+    cardType: type,
+    actor: myRole,
+    val: 1,
+    flipCount: gs.flipCount,
+    timestamp: Date.now(),
+    actionId: Math.random() // 👈 必加：確保動作唯一
+  });
+
+  db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
+
+  // 處理本地數值變化
+  if (type === 'atk') {
+    FX.damage(gs, 'enemy', 1, "🃏 你發動了行動卡攻擊");
+    gs.statAtk++; // ⚡ 增加我的攻擊統計
+  } else {
+    FX.heal(gs, 'player', 1, "🃏 你發動了行動卡治療");
+    gs.statHeal++; // ⚡ 增加我的治療統計
+  }
+
+
+  
+  renderBattle();
+  checkWin(); // 👈 保留：確保本地立即結算勝負
+}
+
+function checkWin(){
+  if(gs.hp<=0||gs.dummyHp<=0||gs.flipCount>=20){
+    renderBattle();
+    if(gs.dummyHp<=0) setTimeout(()=>endBattle('dummy'),600);
+    else if(gs.hp<=0) setTimeout(()=>endBattle('lose'),600);
+    else if(gs.flipCount>=20) setTimeout(()=>endBattle('flip'),600);
+  }
+}
+
+// ─────────────────────────────────────────
+//  END TURN (修正版：結構唯一，無重複代碼)
+// ─────────────────────────────────────────
+function doEndTurn(){
+  if(gs.phase !== 'action' || myRole !== gs.currentTurnPlayer) return;
+  
+  // 1. 廣播結束信號
+  db.ref(`rooms/${roomId}/battle/lastAction`).set({
+    type: 'clearAccs',
+    actor: myRole,
+    timestamp: Date.now(),
+    actionId: Math.random()
+  });
+
+  // 2. 本地清理 (保護 keepStored 配件)
+Object.keys(gs.playerStored).forEach(id => {
+    const acc = ACCESSORIES.find(a => a.id === id);
+    if (!acc || !acc.keepStored) gs.playerStored[id] = [];
+  });
+
+  // 3. 雲端換人
+  const nextPlayer = (myRole === 'host') ? 'guest' : 'host';
+  db.ref(`rooms/${roomId}/battle`).update({
+    currentTurnPlayer: nextPlayer,
+    turnCount: gs.statTurn + (nextPlayer === 'host' ? 1 : 0),
+    lastDice: null,
+    timestamp: Date.now()
+  });
+
+  log(`─── 你結束了回合 ───`, 'system');
+  gs.phase = 'end';
+  renderBattle();
+}
+
+// ─────────────────────────────────────────
+//  END BATTLE
+// ─────────────────────────────────────────
+function endBattle(reason) {
+  // 💰 獎金計算邏輯
+  let prize = 0;
+  let msg = "";
+
+  // 🛡️ 防刷錢機制：至少要打 3 回合才給獎勵
+  if (gs.statTurn >= 3) {
+    if (reason === 'dummy' || reason === 'flip') {
+      // 勝利：基礎獎金 50，每多撐一回合加 2 金 (上限 100)
+      prize = Math.min(100, 50 + (gs.statTurn * 2));
+      playerAccount.gold += prize;
+      msg = `💰 戰鬥勝利！酒館老闆賞了你 ${prize} 枚金幣。`;
+    } else if (reason === 'lose') {
+      // 輸了：安慰獎 10 金
+      prize = 10;
+      playerAccount.gold += prize;
+      msg = `💀 戰鬥落敗... 但酒館老闆還是給了你 ${prize} 枚金幣當醫藥費。`;
+    }
+  } else {
+    msg = "⚠️ 戰鬥時間太短，酒館老闆拒絕支付獎金！";
+  }
+
+  // 同步數據與日誌
+  if (prize > 0) {
+    log(msg, 'good');
+  } else {
+    log(msg, 'system');
+  }
+  
+  saveAccountToCloud(); // 立即同步到 Firebase 存檔
+  syncAccountUI();      // 更新頂部金幣顯示
+
+  // 渲染結算畫面
+  const icons = { flip: '🏆', dummy: '⚔', lose: '💀' };
+  const titles = { flip: '翻轉大師', dummy: '強敵擊破', lose: '落敗' };
+  const reasons = {
+    flip: `行動卡翻轉達到 ${gs.flipCount} / 20 次！`,
+    dummy: `成功擊敗了對手！`,
+    lose: '你的血量歸零了，在迷霧中倒下...',
+  };
+
+  document.getElementById('vic_ico').textContent = icons[reason] || '🎓';
+  document.getElementById('vic_title').textContent = titles[reason] || '對局結束';
+  document.getElementById('vic_sub').textContent = roomId ? `聯網對戰 ・ 房號 ${roomId}` : '練習模式 ・ 成果統計';
+  document.getElementById('vic_reason').textContent = reasons[reason] || '';
+  
+  document.getElementById('vic_stats').innerHTML = `
+    <div class="stat-item"><div class="stat-n">${gs.statTurn}</div><div class="stat-l">回合數</div></div>
+    <div class="stat-item"><div class="stat-n">${gs.flipCount}</div><div class="stat-l">翻轉次數</div></div>
+    <div class="stat-item"><div class="stat-n">${gs.statAtk}</div><div class="stat-l">總攻擊次數</div></div>
+    <div class="stat-item"><div class="stat-n">${prize}</div><div class="stat-l">獲得金幣</div></div>
+  `;
+  goTo('victoryScreen');
+}
+
+// ─────────────────────────────────────────
+//  DRAG & DROP
+// ─────────────────────────────────────────
+const ghost=document.getElementById('dragGhost');
+let dragging=false,dragIdx=null;
+
+function setupDrag(el,idx){
+  const move=(x,y)=>{ 
+    ghost.style.left=(x-29)+'px'; 
+    ghost.style.top=(y-29)+'px'; 
+  };
+
+  const end = (x, y) => {
+    if (!dragging) return;
+    const currentIdx = dragIdx;
+    dragging = false;
+    ghost.classList.remove('active');
+    el.style.opacity = '1';
+
+    const t = getTarget(x, y);
+    if (t === 'card') {
+      useDieOnCard(currentIdx);
+    } else if (t) {
+      useDieOnAcc(currentIdx, t);
+    }
+
+    clearDropHighlights();
+    dragIdx = null;
+    renderBattle();
+  };
+
+  // 🖱️ --- 電腦版滑鼠事件 ---
+  el.addEventListener('mousedown', e => {
+    // ⚡ [新增這一段] 全盤考慮：如果不是我的回合，禁止拖拽
+    if (myRole !== gs.currentTurnPlayer) {
+      console.log("酒館老闆：『客人，現在不是你的回合，別亂動骰子！』");
+      return; 
+    }
+    e.preventDefault(); 
+    dragging = true; dragIdx = idx;
+    ghost.innerHTML = el.innerHTML;
+    ghost.style.width = el.offsetWidth + 'px';
+    ghost.style.height = el.offsetHeight + 'px';
+    ghost.classList.add('active');
+    el.style.opacity = '.3';
+    move(e.clientX, e.clientY);
+    setDropHighlights(true);
+  });
+
+  // ⚡ 核心修復：這兩行必須存在，滑鼠動的時候鬼影才會動！
+  const onMouseMove = (e) => { if(dragging) move(e.clientX, e.clientY); };
+  const onMouseUp = (e) => { if(dragging) end(e.clientX, e.clientY); };
+  
+  // 為了效能，綁在全域 document 上
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+
+  // 📱 --- 手機版觸控事件 ---
+  el.addEventListener('touchstart', e => {
+  if (myRole !== gs.currentTurnPlayer) return;
+
+    if (e.cancelable) e.preventDefault(); 
+    dragging = true; dragIdx = idx;
+    const t = e.touches[0];
+    ghost.innerHTML = el.innerHTML;
+    ghost.style.width = el.offsetWidth + 'px';
+    ghost.style.height = el.offsetHeight + 'px';
+    ghost.classList.add('active');
+    el.style.opacity = '.3';
+    move(t.clientX, t.clientY);
+    setDropHighlights(true);
+  }, { passive: false });
+
+  el.addEventListener('touchmove', e => {
+    if (dragging) {
+      if (e.cancelable) e.preventDefault(); 
+      const t = e.touches[0];
+      move(t.clientX, t.clientY);
+    }
+  }, { passive: false });
+
+  el.addEventListener('touchend', e => {
+    if (dragging) {
+      const t = e.changedTouches[0];
+      end(t.clientX, t.clientY);
+    }
+  }, { passive: false });
+}
+
+function setDropHighlights(on){
+  const card = document.getElementById('myCard');
+  
+  // 只有在：1. 開啟亮框 2. 行動階段 3. 玩家拖曳中 時才亮紅框
+  if (on && gs.phase === 'action' && !gs.isAIThinking) {
+    card.classList.add('droptarget');
+  } else {
+    card.classList.remove('droptarget');
+  }
+  
+  // 配件晶片紅框邏輯 (保持剛才修正好的 chip_player_...)
+  gs.loadout.forEach(id => {
+    const acc = ACCESSORIES.find(a => a.id === id);
+    const chip = document.getElementById('chip_player_' + id);
+    
+    if (chip && acc) {
+      if (on && acc.type === 'active' && canUseAccessory(acc, gs.dice, dragIdx)) {
+        chip.classList.add('droptarget');
+      } else {
+        chip.classList.remove('droptarget');
+      }
+    }
+  });
+}
+function clearDropHighlights(){ setDropHighlights(false); }
+function getTarget(x, y) {
+  // 抓取行動卡的感應區域
+  const card = document.getElementById('myCard');
+  if (card) {
+    const cardR = card.getBoundingClientRect();
+    // 判定滑鼠放開的位置(x, y)是否在行動卡範圍內
+    if (x >= cardR.left && x <= cardR.right && y >= cardR.top && y <= cardR.bottom) {
+      return 'card';
+    }
+  }
+
+  // 抓取配件欄位的感應區域
+  for (const id of gs.loadout) {
+    const acc = ACCESSORIES.find(a => a.id === id);
+    // 核心修正：對應到玩家專屬的 chip 元素 ID
+    const c = document.getElementById('chip_player_' + id); 
+    if (!c || !acc || acc.type === 'passive') continue;
+
+    const r = c.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id;
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────
+//  FLOAT TEXT
+// ─────────────────────────────────────────
+function floatAt(txt,anchorEl,cls){
+  if(!anchorEl) return;
+  const el=document.createElement('div');
+  el.className=`float-text ft-${cls}`;
+  el.textContent=txt;
+  const r=anchorEl.getBoundingClientRect();
+  el.style.left=(r.left+r.width/2-20)+'px';
+  el.style.top=(r.top)+'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1100);
+}
+
+// ─────────────────────────────────────────
+//  LOG
+// ─────────────────────────────────────────
+function log(msg, cls='system') {
+  const logEl = document.getElementById('battleLog');
+  if(!logEl) return;
+  const d = document.createElement('div');
+  d.className = 'log-line log-' + cls;
+  d.textContent = msg;
+  logEl.appendChild(d);
+  
+  // ⚡ 自動清理：只保留最後 20 條，保持視窗清爽
+  while (logEl.childNodes.length > 20) {
+    logEl.removeChild(logEl.firstChild);
+  }
+  
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ─────────────────────────────────────────
+//  TOOLTIP
+// ─────────────────────────────────────────
+function showTip(acc){
+  document.getElementById('tipIco').textContent=acc.icon;
+  document.getElementById('tipNm').textContent=acc.name;
+  document.getElementById('tipReq').textContent=`觸發條件：${acc.req}`;
+  document.getElementById('tipBody').textContent=acc.desc;
+  document.getElementById('tipOverlay').classList.remove('out');
+}
+function closeTip(){ document.getElementById('tipOverlay').classList.add('out'); }
+
+// ─────────────────────────────────────────
+//  MOTES
+// ─────────────────────────────────────────
+(function spawnMotes(){
+  for(let i=0;i<6;i++){
+    const m=document.createElement('div');
+    m.className='mote';
+    const s=rand(40,120);
+    m.style.cssText=`width:${s}px;height:${s}px;left:${rand(0,100)}%;animation-duration:${rand(18,35)}s;animation-delay:${rand(0,25)}s`;
+    document.body.insertBefore(m,document.body.firstChild);
+  }
+  setTimeout(spawnMotes,28000);
+})();
+
+// ─────────────────────────────────────────
+//  ENEMY AI SYSTEM (對手大腦 - 完全體)
+// ─────────────────────────────────────────
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function doEnemyTurn() {
+  const currentId = gameInstanceId;
+  gs.isAIThinking = true;
+  renderBattle();
+  gs.enemyUsedAccs = []; 
+
+  triggerEvent('playerTurnStart', 'enemy');
+
+  log('🤖 對手正在思考下一步...', 'system');
+  
+  await sleep(1200);
+  if (currentId !== gameInstanceId) return;
+
+  const n = 2 + (gs.enemyBonusDice || 0);
+  gs.enemyBonusDice = 0;
+  const aiDice = [];
+  for(let i=0; i<n; i++) {
+    let v = (i === 0 && gs.enemyNextDie) ? gs.enemyNextDie : rand(1, 6);
+    if (i === 0 && gs.enemyNextDie) gs.enemyNextDie = null;
+    aiDice.push({ v, u: false });
+  triggerEvent('playerDieRolled', 'enemy', v, 'start'); 
+  }
+  log(`🎲 對手擲出了：${aiDice.map(d => FACES[d.v - 1]).join(' ')}`, 'bad');
+
+  for (let die of aiDice) {
+    await sleep(600); 
+    if (currentId !== gameInstanceId) return;
+    let acted = false;
+
+    for (let accId of gs.enemyLoadout) {
+      const acc = ACCESSORIES.find(a => a.id === accId);
+      if (!acc || acc.type === 'passive' || gs.enemyUsedAccs.includes(accId) || !acc.trigger) continue;
+      
+      if (acc.trigger.faces && acc.trigger.faces.includes(die.v)) {
+        // ⚡ 重要：明確告訴系統是 'enemy' 在充能
+        useAccessory(acc, aiDice, aiDice.indexOf(die), 'enemy'); 
+        renderBattle(); // 強制刷新讓玩家看見充能亮框
+        await sleep(800); // 給玩家眼睛留出反應時間
+        
+        acted = true;
+        break;
+      }
+    }
+
+    if (!acted) {
+      gs.enemyPts += die.v;
+      log(`📥 對手將 ${FACES[die.v-1]} 填入行動卡 (+${die.v})`, 'system');
+      renderBattle();
+    }
+  }
+
+  // 行動卡檢查
+  const eMax = gs.enemyFace === 'A' ? 8 : 24;
+  if (gs.enemyPts >= eMax) {
+    await sleep(600);
+    if (currentId !== gameInstanceId) return;
+    gs.enemyPts -= eMax;
+    gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
+    gs.enemyFlipCount = (gs.enemyFlipCount || 0) + 1;
+
+    if (gs.dummyHp <= 3 && Math.random() < 0.4) {
+      FX.heal(gs, 'enemy', 1, "🃏 對手使用行動卡");
+    } else {
+      FX.damage(gs, 'player', 1, "🃏 對手使用行動卡");
+    }
+    renderBattle();
+    checkWin();
+  }
+
+  await sleep(1000);
+  if (currentId !== gameInstanceId) return;
+  clearAllLedgers();
+  gs.isAIThinking = false;
+  gs.statTurn++;
+  gs.phase = 'roll';
+  gs.rolled = false;
+  log(`─── 對手回合結束 ───`, 'system');
+  renderBattle();
+}
+
+// 📜 顯示與關閉規則指南的控制函式
+function showRules() { 
+  const rules = document.getElementById('rulesOverlay');
+  if (rules) rules.classList.remove('out'); 
+}
+
+function closeRules() { 
+  const rules = document.getElementById('rulesOverlay');
+  if (rules) rules.classList.add('out'); 
+}
+
+
+// 聯網核心：建立或加入房間邏輯
+// 聯網核心：建立或加入房間邏輯 (修正版)
+function joinOnlineRoom() {
+  const input = document.getElementById('roomInput').value.trim();
+  if (!input) return alert("酒館老闆：『客人，請輸入房號！』");
+  if (!myUID) return alert("你還沒領取身分牌呢！");
+
+  roomId = input;
+  const roomRef = db.ref('rooms/' + roomId);
+
+  roomRef.once('value').then((snapshot) => {
+    let data = snapshot.val();
+    const now = Date.now();
+
+    // 🧹 ⚡ 全盤考慮：幽靈房間強行清掃
+    // 如果房間存在，且有 timestamp，但超過 120 秒沒更新
+    if (data && data.timestamp && (now - data.timestamp > 120000)) {
+      console.log("🧹 發現幽靈房間，正在執行清掃...");
+      roomRef.remove(); 
+      data = null; // 視為新房間
+    }
+
+    let reconnectRole = null;
+    if (data) {
+      if (data.host === myUID) reconnectRole = 'host';
+      else if (data.guest === myUID) reconnectRole = 'guest';
+    }
+
+    if (reconnectRole) {
+      console.log(`🛡️ 歡迎回來，${reconnectRole === 'host' ? '房主' : '挑戰者'}！`);
+      myRole = reconnectRole;
+      roomRef.update({ timestamp: now }); // 重連立即刷新生存時間
+    } 
+    else if (!data) {
+      myRole = 'host';
+      roomRef.set({ host: myUID, status: 'waiting', timestamp: now });
+      setupPresence(roomId, 'host');
+    } 
+    else if (data.status === 'waiting' && data.host !== myUID) {
+      myRole = 'guest';
+      roomRef.update({ guest: myUID, status: 'pre-battle', timestamp: now });
+      setupPresence(roomId, 'guest');
+    } 
+    else {
+      return alert("這桌已經坐滿了人，或是戰鬥進行中，換一桌吧！");
+    }
+
+    setupPresence(roomId, myRole);
+    
+    roomRef.on('value', (snapshot) => {
+      const roomData = snapshot.val();
+      if (!roomData) return;
+      updateLobbyUI(roomData); 
+    });
+
+    document.getElementById('displayRoomId').textContent = roomId;
+    renderLobbyAccs();
+    goTo('lobbyScreen');
+  });
+}
+let isReady = false; // 我的準備狀態
+
+// 1. 渲染大廳專用的配件選擇區 (這會抓取你 playerAccount 裡的 warehouse)
+function renderLobbyAccs() {
+  const grid = document.getElementById('lobbyAccGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  
+  playerAccount.warehouse.forEach(id => {
+    const acc = ACCESSORIES.find(a => a.id === id);
+    const isSelected = loadout.includes(id); // 這裡 loadout 會當作暫存區
+    
+    const card = document.createElement('div');
+    card.className = `acc-card ${isSelected ? 'equipped' : ''}`;
+    card.style.minHeight = "80px";
+    card.innerHTML = `
+      <div style="font-size:1.2rem;">${acc.icon}</div>
+      <div style="font-size:0.6rem; color:var(--gold-lt);">${acc.name}</div>
+    `;
+    card.onclick = () => selectLobbyAcc(id);
+    grid.appendChild(card);
+  });
+  renderLobbySlots();
+}
+
+// 2. 點擊選擇配件
+function selectLobbyAcc(id) {
+  if (isReady) return; // 準備後鎖定，不能改
+  if (loadout.includes(id)) {
+    loadout = loadout.filter(x => x !== id);
+  } else if (loadout.length < 5) {
+    loadout.push(id);
+  }
+  // ⚡ 更新到 Firebase 的房間裡
+  syncLoadoutToCloud(); 
+  renderLobbyAccs();
+}
+
+// 3. 渲染上方的盲選格子 (看自己的)
+function renderLobbySlots() {
+  const myBox = document.getElementById('myLobbySlots');
+  if(!myBox) return;
+  myBox.innerHTML = '';
+  for(let i=0; i<5; i++) {
+    const slot = document.createElement('div');
+    slot.style.cssText = "width:35px; height:45px; background:var(--smoke-lt); border:1px solid var(--gold-dk); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:1.2rem;";
+    if (loadout[i]) {
+      const acc = ACCESSORIES.find(a => a.id === loadout[i]);
+      slot.innerHTML = acc.icon;
+      slot.style.borderColor = "var(--gold-lt)";
+    }
+    myBox.appendChild(slot);
+  }
+}
+
+// 4. 準備按鈕
+function toggleReady() {
+  if (loadout.length === 0) return alert("至少帶一個裝備吧，勇者！");
+  
+  isReady = !isReady;
+  const btn = document.getElementById('readyBtn');
+  btn.textContent = isReady ? "取消準備" : "✔ 我準備好了";
+  btn.style.filter = isReady ? "brightness(0.6)" : "none";
+  
+  // ⚡ 告訴雲端：我準備好了
+  if (roomId && myRole) {
+    db.ref(`rooms/${roomId}/${myRole}_ready`).set(isReady);
+  }
+}
+let isInBattle = false;
+// 5. 核心：監聽對手配件與準備狀態
+// 這段會被 joinOnlineRoom 裡面的 roomRef.on('value', ...) 呼叫
+function updateLobbyUI(roomData) {
+  const opponentRole = (myRole === 'host') ? 'guest' : 'host';
+  const enemyLoadout = roomData[`${opponentRole}_loadout`] || [];
+  const enemyIsReady = roomData[`${opponentRole}_ready`] || false;
+  
+  // 1. 渲染對手的盲選格子
+  const enemyBox = document.getElementById('enemyLobbySlots');
+  if(enemyBox) {
+    enemyBox.innerHTML = '';
+    for(let i=0; i<5; i++) {
+      const slot = document.createElement('div');
+      slot.style.cssText = "width:35px; height:45px; background:var(--smoke-lt); border:1px solid var(--gold-dk); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:1.2rem;";
+      if (enemyLoadout[i]) {
+        slot.innerHTML = "📜"; 
+        slot.style.borderColor = "var(--ember)";
+      }
+      enemyBox.appendChild(slot);
+    }
+  }
+  
+  const statusEl = document.getElementById('enemyReadyStatus');
+  if(statusEl) {
+    statusEl.textContent = enemyIsReady ? "🔴 對手已就緒！" : "對方選填中...";
+    statusEl.style.color = enemyIsReady ? "var(--gold-lt)" : "var(--parch-dim)";
+  }
+
+  // ⚡ 2. 關鍵修正：加上 !isInBattle 判斷
+  const myReady = roomData[`${myRole}_ready`];
+  if (myReady && enemyIsReady && !isInBattle) {
+    console.log("⚔️ 偵測到雙方就緒，進入聯網戰場...");
+    
+    // 🔒 立即把開關鎖上，防止 Firebase 下一次同步又跑進來
+    isInBattle = true; 
+    
+    gs.enemyLoadout = enemyLoadout; 
+    
+    setTimeout(() => {
+      startOnlineBattle(); 
+    }, 1500);
+  }
+}
+function startOnlineBattle() {
+  // 1. 初始化戰鬥狀態 (聯網版)
+  gs = {
+    hp: 6, dummyHp: 6,           // 這裡是玩家 vs 真人對手
+    pts: 0, face: 'A',
+    enemyPts: 0, enemyFace: 'A',
+    // ⚡ 統計數據初始化
+    statAtk: 0,        // 我的總攻擊次數
+    statHeal: 0,       // 我的總治療次數
+    enemyStatAtk: 0,   // 對手的總攻擊次數
+    enemyStatHeal: 0,  // 對手的總治療次數
+    flipCount: 0, 
+    enemyFlipCount: 0,
+    statTurn: 1,
+    phase: 'roll',               // 起始階段
+    isAIThinking: false,         // 真人對戰不需 AI 思考
+    dice: [],
+    loadout: [...loadout],       // 你的配件
+    enemyLoadout: [...gs.enemyLoadout], // 對手的配件 (剛才揭曉的)
+    playerStored: {},
+    enemyStored: {},
+    currentTurnPlayer: 'host',   // ⚡ 規定永遠由房主先攻
+    usedAccs: [],
+    enemyUsedAccs: []
+  };
+
+  // 2. 切換到戰鬥畫面
+  goTo('battleScreen');
+  log("⚔️ 真人對決開始！房主先攻。", "system");
+
+  // 3. 渲染畫面
+  renderBattle();
+
+  // 4. ⚡ 核心：如果是 guest，鎖死操作
+  lockControlsIfNotMyTurn();
+  
+  // 5. ⚡ 開始監聽戰鬥中的所有動作
+  listenToBattleActions();
+}
+
+
+// 戰鬥動作接收器：負責把雲端的資料「變」到你的螢幕上
+function listenToBattleActions() {
+  if (!roomId) return;
+  const battleRef = db.ref(`rooms/${roomId}/battle`);
+
+  battleRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+
+   // A. 判定勝負
+    if (data.status === 'game-over' && !gs.isGameOver) {
+      gs.isGameOver = true;
+      battleRef.off(); // 停止監聽以免重複觸發
+      
+      const winner = data.winner;
+      // 延遲一下讓玩家看清楚最後一擊
+      setTimeout(() => {
+        // 如果贏家是我 Role，傳入 'dummy' (勝利)；否則傳入 'lose'
+        endBattle(winner === myRole ? 'dummy' : 'lose');
+      }, 1000);
+      return;
+    }
+
+    // B. 骰子同步 (確保點數變換與被動觸發)
+    if (data.lastDice) {
+      const isMyTurn = (myRole === gs.currentTurnPlayer);
+      if (gs.diceActionId !== data.diceActionId) {
+        gs.diceActionId = data.diceActionId;
+        gs.dice = data.lastDice;
+        
+     // ⚡ 核心修正：增加安全鏈判斷 data?.lastAction
+        // 只有在「不是鬧鐘重骰」的情況下，才執行回合開始的被動效果
+        const isReroll = data.lastAction && data.lastAction.accId === 'clock';
+
+        if (!isMyTurn && !isReroll) {
+          triggerEvent('playerTurnStart', 'enemy'); 
+          data.lastDice.forEach(d => triggerEvent('playerDieRolled', 'enemy', d.v, 'start'));
+        }
+      }
+      gs.rolled = true;
+      gs.phase = 'action';
+    } else {
+      // ⚡ 新回合開始：清空畫面與冷卻清單
+      gs.rolled = false;
+      gs.phase = 'roll';
+      gs.dice = []; 
+      gs.usedAccs = [];      
+      gs.enemyUsedAccs = []; 
+    }
+
+   // C. ⚡ 聯網動作分發 (簡潔版)
+    if (data.lastAction) {
+      const act = data.lastAction;
+      if (act.actionId !== gs.lastProcessedActionId) {
+        gs.lastProcessedActionId = act.actionId;
+        if (act.actor !== myRole) {
+          // 🚂 讓指揮部處理一切，它是專業的
+          BattleCommander.dispatch(act); 
+        }
+      }
+    }
+    
+    // D. 回合換人同步
+    if (data.currentTurnPlayer && data.currentTurnPlayer !== gs.currentTurnPlayer) {
+      gs.currentTurnPlayer = data.currentTurnPlayer;
+      gs.statTurn = data.turnCount || gs.statTurn;
+    }
+
+    // 重新渲染與 UI 解鎖
+    renderBattle();
+    setTimeout(() => {
+      lockControlsIfNotMyTurn();
+      updateCtrl(); 
+    }, 50);
+  });
+}
+
+// 2. 離開房間邏輯：修復報錯並清理雲端資料
+function quitRoom() {
+  if (!confirm("確定要離開對局室嗎？")) return;
+
+  if (roomId && myRole) {
+    const updates = {};
+    updates[myRole] = null;
+    updates[`${myRole}_loadout`] = null;
+    updates[`${myRole}_ready`] = null;
+    
+    db.ref('rooms/' + roomId).update(updates).then(() => {
+      db.ref('rooms/' + roomId).off(); // 停止監聽
+      roomId = null;
+      myRole = null;
+      isReady = false;
+      loadout = [];
+      goTo('introScreen');
+    });
+  } else {
+    goTo('introScreen');
+  }
+}
+
+// 3. 補上一個同步配件清單的工具 (給 Lobby 用)
+function syncLoadoutToCloud() {
+  if (!roomId || !myRole) return;
+  const updates = {};
+  updates[`${myRole}_loadout`] = loadout;
+  db.ref('rooms/' + roomId).update(updates);
+}
+
+// 根據回合鎖定按鈕與骰子
+function lockControlsIfNotMyTurn() {
+  const isMyTurn = (myRole === gs.currentTurnPlayer);
+  
+  // ⚡ 這裡非常關鍵：如果不是我的回合，所有按鈕鎖死
+  // 如果是我的回合，交給 updateCtrl 根據 phase 進一步判斷
+  document.getElementById('rollBtn').disabled = !isMyTurn || gs.phase !== 'roll';
+  document.getElementById('endBtn').disabled = !isMyTurn || gs.phase !== 'action';
+  
+  const turnEl = document.getElementById('bh_turn');
+  if (isMyTurn) {
+    turnEl.textContent = `🟢 輪到你行動 (${gs.phase === 'roll' ? '請擲骰' : '行動中'})`;
+    turnEl.style.background = "var(--jade)";
+  } else {
+    turnEl.textContent = "🔴 對手回合中...";
+    turnEl.style.background = "var(--wax)";
+  }
+}
+// 執行初始頁面
+goTo('introScreen');
+
+</script>
+<div id="toast-container"></div>
+</body>
+</html>
