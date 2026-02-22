@@ -1676,15 +1676,21 @@ function loadUserAccount(uid) {
       playerAccount = cloudData;
       console.log("✅ 已恢復雲端存檔");
     } else {
-      // 沒存檔的新玩家，給他初始數值
+      // 沒存檔的新玩家，給他初始數值（空倉庫、無裝備）
       playerAccount = {
         name: "勇者" + Math.floor(Math.random()*1000),
-        gold: 100,
+        gold: 0,
         level: 1,
-        warehouse: ['sword', 'shoes', 'tentacle', 'clock', 'bomb'],
-        currentLoadout: ['sword', 'shoes']
+        warehouse: [],  // ⚡ 改為空陣列，沒有任何配件
+        currentLoadout: [],  // ⚡ 改為空陣列，沒有裝備
+        shards: 0
       };
-      saveAccountToCloud(); // 幫他建立第一份存檔
+      
+      // ✨ 新玩家贈送五連抽（不重複）
+      showTavernMsg("🎁 新冒險者！正在進行五連抽...");
+      
+      // 確保不重複的抽獎
+      performFiveUniqueGacha();
     }
     syncAccountUI();
     renderLibrary();
@@ -1692,6 +1698,39 @@ function loadUserAccount(uid) {
       document.getElementById('uidDisplay').textContent = "身分牌: " + playerAccount.name;
     }
   });
+}
+
+// ✨ 新增：五連抽（保證不重複）
+function performFiveUniqueGacha() {
+  // 複製一份配件清單（避免重複）
+  let availableAccs = [...ACCESSORIES];
+  let drawnCount = 0;
+  
+  const drawTimer = setInterval(() => {
+    if (availableAccs.length === 0 || drawnCount >= 5) {
+      clearInterval(drawTimer);
+      showTavernMsg("🎉 五連抽完成！祝你冒險順利！");
+      saveAccountToCloud();
+      syncAccountUI();
+      renderLibrary();
+      return;
+    }
+    
+    // 隨機抽一個
+    const randomIndex = Math.floor(Math.random() * availableAccs.length);
+    const wonAcc = availableAccs[randomIndex];
+    
+    // 從可用清單中移除（確保不重複）
+    availableAccs.splice(randomIndex, 1);
+    
+    // 加入倉庫
+    playerAccount.warehouse.push(wonAcc.id);
+    drawnCount++;
+    
+    // 顯示結果
+    showTavernMsg(`✨ 第 ${drawnCount} 抽：獲得 ${wonAcc.name}！`);
+    
+  }, 600); // 0.6 秒顯示一次
 }
 
 // ⚡ [新增] 將目前的 playerAccount 狀態儲存到雲端
