@@ -1022,7 +1022,10 @@ body{
     <div class="vic-reason" id="vic_reason"></div>
     <div class="vic-stats" id="vic_stats"></div>
     <button class="btn-enter" onclick="goTo('prepScreen')">再練一局</button>
-    <button class="btn-back" style="display:block;width:180px;margin:.5rem auto" onclick="goTo('introScreen')">返回酒館</button>
+<button class="btn-back" style="display:block;width:180px;margin:.5rem auto" onclick="goTo('introScreen')">返回酒館</button>
+
+<button class="btn-enter" onclick="prepareNewGame()">再練一局</button>
+<button class="btn-back" style="display:block;width:180px;margin:.5rem auto" onclick="quitBattle()">返回酒館</button>
   </div>
 </div>
 
@@ -1078,7 +1081,7 @@ body{
 const firebaseConfig = {
   apiKey: "AIzaSyCiCCa-qIzrQb0djBjgwTDs78dikK6hcW4",
   authDomain: "misty-tavern.firebaseapp.com",
-  databaseURL: "https://misty-tavern-default-rtdb.asia-southeast1.firebasedatabase.app",
+  databaseURL: "https://misty-tavern-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "misty-tavern",
   storageBucket: "misty-tavern.firebasestorage.app",
   messagingSenderId: "562413470832",
@@ -1105,6 +1108,14 @@ const BattleCommander = {
 
     // 在 BattleCommander.actions 裡面
     useDieOnAcc: (act) => {
+
+
+      // 在 useDieOnAcc 裡面加入
+      db.ref(`rooms/${roomId}/battle`).update({
+      playerStored: gs.playerStored,
+      enemyStored: gs.enemyStored
+       });
+
       const acc = ACCESSORIES.find(a => a.id === act.accId);
       if (acc && gs.dice && gs.dice[act.dieIdx]) {
         // 1. ⚡ 強制同步對手投下的骰子點數
@@ -2360,9 +2371,15 @@ function startBattle(){
   const aiPool = ACCESSORIES.filter(a => a.id !== 'medal').map(a => a.id);
   const enemyLoadout = aiPool.sort(() => 0.5 - Math.random()).slice(0, 3); 
 
+
+  const battleLoadout = [...loadout];
+
   // 3. 核心狀態初始化
   // 尋找 gs = { ... }
 gs = {
+    
+    loadout: battleLoadout,
+
     hp:6, dummyHp:6,
     pts:0, face:'A',
     enemyPts:0, enemyFace:'A',
@@ -2410,31 +2427,36 @@ requestAnimationFrame(() => {
 }
 
 function quitBattle() {
-  if (!confirm("確定要離開這局戰鬥並回到酒館嗎？")) return;
+    if (!confirm("確定要離開並回到酒館嗎？")) return;
 
-  const roomRef = db.ref('rooms/' + roomId);
-  
-  // ⚡ 根據身分執行不同的打掃邏輯
-  if (myRole === 'host') {
-    // 房主離開 -> 直接解散房間 (最暴力也最乾淨)
-    roomRef.remove();
-  } else {
-    // 客人離開 -> 僅移除客人的 ID 並將房間設回等待中
-    roomRef.update({
-      guest: null,
-      guest_ready: null,
-      status: 'waiting'
-    });
-  }
+    if (roomId) {
+        const roomRef = db.ref('rooms/' + roomId);
+        
+        if (myRole === 'host') {
+            // 房主離開：直接把整張桌子翻了（移除房間）
+            roomRef.remove();
+        } else {
+            // 客人離開：把自己拍拍屁股走人，房間設回等待
+            roomRef.child('guest').remove();
+            roomRef.child('guest_ready').remove();
+            roomRef.child('guest_loadout').remove();
+            roomRef.update({ status: 'waiting' });
+            roomRef.off(); // 停止監聽
+        }
+    }
+    
+    // 本地狀態徹底歸零
+    isInBattle = false;
+    roomId = null;
+    myRole = null;
+    isReady = false;
+    gameInstanceId++; // 停止任何進行中的異步邏輯
+    
+  loadout = [];
 
-  // 本地重置
-  isInBattle = false;
-  roomId = null;
-  myRole = null;
-  gameInstanceId++;
-  
-  goTo('introScreen');
+    goTo('introScreen');
 }
+
 function renderBattle(){
   renderHP();
   renderCard();
@@ -2895,6 +2917,33 @@ function endBattle(reason) {
     <div class="stat-item"><div class="stat-n">${prize}</div><div class="stat-l">獲得金幣</div></div>
   `;
   goTo('victoryScreen');
+}
+
+// 這是專門用來清理戰場，準備下一局的函式
+function prepareNewGame() {
+    if (roomId && myRole === 'host') {
+        // 房主負責把 Firebase 上的戰鬥狀態洗掉
+        db.ref(`rooms/${roomId}/battle`).remove();
+        db.ref(`rooms/${roomId}`).update({
+            status: 'pre-battle', // 讓房間回到準備中
+            host_ready: false,
+            guest_ready: false,
+            timestamp: Date.now()
+        });
+    }
+
+    loadout = [];
+
+    // 重置本地的所有開關
+    isInBattle = false; 
+    isReady = false;
+    if (gs) {
+        gs.isGameOver = false;
+        gs.lastProcessedActionId = null; // 清除動作紀錄
+    }
+    
+    // 回到準備畫面
+    goTo('prepScreen');
 }
 
 // ─────────────────────────────────────────
@@ -3411,6 +3460,8 @@ function startOnlineBattle() {
 function listenToBattleActions() {
   if (!roomId) return;
   const battleRef = db.ref(`rooms/${roomId}/battle`);
+  
+  battleRef.off();
 
   battleRef.on('value', (snapshot) => {
     const data = snapshot.val();
