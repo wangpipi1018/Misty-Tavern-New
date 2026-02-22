@@ -1628,12 +1628,12 @@ let lobbyMode = 'pvp'; // 'pve' 或 'pvp'
 
 // 🏆 玩家存檔數據
 let playerAccount = {
-  name: "Luyuan",
-  gold: 100,
+  name: "",  // ⚡ 空字串
+  gold: 0,   // ⚡ 金幣 0
   level: 1,
-  warehouse: ['sword', 'shoes', 'tentacle', 'clock', 'bomb'], 
-  currentLoadout: ['sword', 'shoes'] ,
-  shards: 0  // ← 新增造型碎片
+  warehouse: [],      // ⚡ 空倉庫
+  currentLoadout: [], // ⚡ 無裝備
+  shards: 0
 };
 
 function loginToTavern() {
