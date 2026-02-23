@@ -198,7 +198,50 @@ body{
     opacity: 1;
   }
 }
+.medal-progress {
+    display: flex;
+    gap: 2px;
+    justify-content: center;
+    margin-top: 2px;
+}
 
+.medal-dot {
+    font-size: 0.45rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--smoke-lt);
+    color: var(--parch-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.medal-dot.collected {
+    background: var(--gold);
+    color: var(--ink);
+    animation: medalCollect 0.3s ease;
+}
+
+@keyframes medalCollect {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.medal-round {
+    font-size: 0.35rem;
+    color: var(--gold-lt);
+    margin-top: 2px;
+}
+
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-3px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+}
 /* ══════════════════════════════════════════
    PREP SCREEN (styles unchanged, 480px max-width already applied)
 ══════════════════════════════════════════ */
@@ -1498,6 +1541,10 @@ body{
 
 <script>
 
+// ██████████████████████████████████████████
+//  1. 資料層
+// ██████████████████████████████████████████
+
 const firebaseConfig = {
   apiKey: "AIzaSyCiCCa-qIzrQb0djBjgwTDs78dikK6hcW4",
   authDomain: "misty-tavern.firebaseapp.com",
@@ -1513,6 +1560,10 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 
+// ██████████████████████████████████████████
+//  2. 遊戲引擎
+// ██████████████████████████████████████████
+
 const BattleCommander = {
   actions: {
     // 1. 📡 對手把骰子放上行動卡
@@ -1526,69 +1577,91 @@ const BattleCommander = {
       log(`📡 對手將 ${FACES[act.val-1]} 填入了行動卡`, 'system');
     },
 
-    // 在 BattleCommander.actions 裡面
-    useDieOnAcc: (act) => {
+   // 在 BattleCommander.useDieOnAcc 中
+useDieOnAcc: (act) => {
+    db.ref(`rooms/${roomId}/battle`).update({
+        playerStored: gs.playerStored,
+        enemyStored: gs.enemyStored
+    });
 
-
-      // 在 useDieOnAcc 裡面加入
-      db.ref(`rooms/${roomId}/battle`).update({
-      playerStored: gs.playerStored,
-      enemyStored: gs.enemyStored
-       });
-
-      const acc = ACCESSORIES.find(a => a.id === act.accId);
-      if (acc && gs.dice && gs.dice[act.dieIdx]) {
-        // 1. ⚡ 強制同步對手投下的骰子點數
+    const acc = ACCESSORIES.find(a => a.id === act.accId);
+    if (acc && gs.dice && gs.dice[act.dieIdx]) {
+        if (act.source === 'reroll') {
+            gs.dice[act.dieIdx].rolling = true;
+        }
+        
         if (act.val) gs.dice[act.dieIdx].v = act.val;
         gs.dice[act.dieIdx].u = true;
 
-        // 2. 🛡️ 聯網核心修正：手動更新對手帳本，不要呼叫 useAccessory
         if (!gs.enemyStored[acc.id]) gs.enemyStored[acc.id] = [];
         gs.enemyStored[acc.id].push(gs.dice[act.dieIdx].v);
 
-        // 3. 🏁 檢查是否達到發動條件
         const totalNeeded = acc.trigger?.count || (acc.trigger?.faces ? acc.trigger.faces.length : 0);
-        if (gs.enemyStored[acc.id].length >= totalNeeded) {
-          // ⚡ 直接執行配件效果，不經過 useAccessory 的複雜檢查
-          acc.effect(gs, 'enemy'); 
-          gs.enemyStored[acc.id] = []; // 發動後清空
+        
+        // ⚡ 獎章特殊處理：完成一輪時更新 enemyMedalRounds
+        if (acc.id === 'medal' && gs.enemyStored[acc.id].length >= totalNeeded) {
+            gs.enemyMedalRounds = (gs.enemyMedalRounds || 0) + 1;
+            gs.enemyStored[acc.id] = [];
+            
+            // 檢查是否勝利
+            if (gs.enemyMedalRounds >= 2) {
+                setTimeout(() => endBattle('lose'), 1000);
+            }
+        } else if (gs.enemyStored[acc.id].length >= totalNeeded) {
+            acc.effect(gs, 'enemy');
+            gs.enemyStored[acc.id] = [];
         }
         
-        // 冷卻紀錄
         if (!gs.enemyUsedAccs) gs.enemyUsedAccs = [];
         if (!gs.enemyUsedAccs.includes(act.accId)) {
-          gs.enemyUsedAccs.push(act.accId);
+            gs.enemyUsedAccs.push(act.accId);
         }
-      }
-    },
+        
+        renderBattle();
+        
+        if (act.source === 'reroll') {
+            setTimeout(() => {
+                if (gs && gs.dice && gs.dice[act.dieIdx]) {
+                    gs.dice[act.dieIdx].rolling = false;
+                    renderBattle();
+                }
+            }, 550);
+        }
+    }
+},
 
     // 3. 📡 對手發動了行動卡技能 (攻擊或治療)
     useCard: (act) => {
-     // act.actor 是發動者的 UID
-      // 這裡要判斷：如果發動者是我，target 就是 'enemy'；如果發動者是對方，target 就是 'player'
-      const isMe = (act.actor === myRole);
-      const target = isMe ? 'enemy' : 'player';
+    const isMe = (act.actor === myRole);
+    const target = isMe ? 'enemy' : 'player';
 
-      if (act.cardType === 'atk') {
+    if (act.cardType === 'atk') {
         FX.damage(gs, target, 1, isMe ? "🃏 行動卡攻擊" : "📡 對手行動卡攻擊");
-        // ⚡ 修正：誰發動的就加誰的統計
         if(isMe) gs.statAtk++; else gs.enemyStatAtk++;
-      } else {
+    } else {
         const healTarget = isMe ? 'player' : 'enemy';
         FX.heal(gs, healTarget, 1, isMe ? "💚 行動卡治療" : "📡 對手行動卡治療");
-        // ⚡ 修正：誰治療的就加誰的統計
         if(isMe) gs.statHeal++; else gs.enemyStatHeal++;
-      }
+    }
 
-      // 視覺同步：扣除對手的能量點數並翻面
-      const eMax = gs.enemyFace === 'A' ? 8 : 24;
-      gs.enemyPts = Math.max(0, gs.enemyPts - eMax);
-      gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
-      gs.enemyFlipCount = act.flipCount;
-      // ⚡ 對手翻面也觸發事件
-      triggerEvent('playerFlip', 'enemy', gs.enemyFlipCount);
-
-    },
+    // 視覺同步：扣除對手的能量點數並翻面
+    const eMax = gs.enemyFace === 'A' ? 8 : 24;
+    gs.enemyPts = Math.max(0, gs.enemyPts - eMax);
+    gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
+    gs.enemyFlipCount = act.flipCount;
+    
+    // ⚡ 能量風暴：如果對手有這個配件，清空我的點數
+    if (!isMe && gs.enemyLoadout && gs.enemyLoadout.includes('storm')) {
+        const oldPts = gs.pts || 0;
+        if (oldPts > 0) {
+            gs.pts = 0;
+            log(`📡 對手的能量風暴：你的 ${oldPts} 點能量被清空了！`, 'bad');
+            floatAt(`-${oldPts}`, document.getElementById('myCard'), 'pts');
+        }
+    }
+    
+    triggerEvent('playerFlip', 'enemy', gs.enemyFlipCount);
+},
 
     // 4. 📡 對手後悔了，從配件收回骰子
     refundAcc: (act) => {
@@ -1630,6 +1703,10 @@ const BattleCommander = {
     }
   }
 };
+
+// ██████████████████████████████████████████
+//  3. 帳號 / 雲端
+// ██████████████████████████████████████████
 
 const auth = firebase.auth();
 let myUID = null; 
@@ -1992,10 +2069,10 @@ const FX = {
  addPts: (gs, who, n) => {
     const val = parseInt(n) || 0;
     if(who==='player') {
-      gs.pts += val;
+      gs.pts = (gs.pts || 0) + val; 
       floatAt(`+${val}`, document.getElementById('myCard'), 'pts');
     } else {
-      gs.enemyPts += val;
+      gs.enemyPts = (gs.enemyPts || 0) + val;
       // ⚡ 改用更穩定的選擇器抓取對手卡片
       const enemyCardWrap = document.querySelector('.card-wrap:last-child .action-card');
       if(enemyCardWrap) floatAt(`+${val}`, enemyCardWrap, 'pts');
@@ -2003,7 +2080,10 @@ const FX = {
     renderCard(); // ⚡ 強制重新渲染確保數字立刻變動
   },
   
-stealPts: (gs, who, n, label = "奪取") => {
+ stealPts: (gs, who, n, label = "奪取") => {
+  // 確保點數存在
+    if (typeof gs.pts !== 'number' || isNaN(gs.pts)) gs.pts = 0;
+    if (typeof gs.enemyPts !== 'number' || isNaN(gs.enemyPts)) gs.enemyPts = 0;
     const from = who === 'player' ? 'enemy' : 'player';
     const currentFromPts = (from === 'player' ? gs.pts : gs.enemyPts);
     const stolen = Math.min(n, currentFromPts);
@@ -2045,7 +2125,15 @@ stealPts: (gs, who, n, label = "奪取") => {
 
     // 🛡️ 安全的分裂方法：先標記原本的已使用，再補兩顆新的
     die.u = true; 
-    targetDice.push({ v: half, u: false }, { v: half, u: false });
+    targetDice.push({ v: half, u: false, rolling: true }, { v: half, u: false, rolling: true });
+
+// 550ms 後移除動畫標記（與 CSS 動畫一致）
+setTimeout(() => {
+  if (gs && gs.dice) {
+    gs.dice.forEach(d => d.rolling = false);
+    renderBattle();
+  }
+}, 550);
   },
   
 damage: (gs, target, n, label = "攻擊") => {
@@ -2126,7 +2214,7 @@ rerollDie: (gs, dropIdx) => {
       targetDie.u = false;
       
       // 核心修正：觸發事件並標註來源為 'reroll'
-      triggerEvent('playerDieRolled', v, 'reroll'); 
+      triggerEvent('playerDieRolled', 'player', v, 'reroll');
       
       log(`⏰ 鬧鐘響起！點數重置為 ${FACES[v-1]}`, 'good');
     }
@@ -2260,42 +2348,60 @@ const ACCESSORIES = [
       check: (gs) => !gs.usedAccs?.includes('clock')
     },
    effect: (gs, who, dropIdx) => {
-      const targetDie = gs.dice[dropIdx];
-      if (!targetDie) return;
-      const newVal = rand(1, 6);
-      targetDie.v = newVal;
-      targetDie.u = false; // 鬧鐘重擲後變回彩色
+    const targetDie = gs.dice[dropIdx];
+    if (!targetDie) return;
+    
+    const oldVal = targetDie.v;
+    const newVal = rand(1, 6);
+    
+    // ✨ 加入滾動動畫
+    targetDie.rolling = true;
+    targetDie.v = newVal;
+    targetDie.u = false;
+    
+    // 重新渲染讓自己看到動畫
+    renderBattle();
 
-      if (who === 'player') {
-        // ⚡ 第一步：先上傳新的骰子數據
-        db.ref(`rooms/${roomId}/battle`).update({
-          lastDice: gs.dice,
-          diceActionId: Math.random()
-        }).then(() => {
-          // ⚡ 第二步：等數據傳成功後，才發送「動作信號」
-          // 這樣房主收到的時候，他手裡的骰子保證已經是新的點數了
-          db.ref(`rooms/${roomId}/battle/lastAction`).set({
-            type: 'useDieOnAcc',
-            actor: myRole,
-            accId: 'clock',
-            dieIdx: dropIdx,
-            val: newVal,
-            source: 'reroll', 
-            timestamp: Date.now(),
-            actionId: Math.random() // 👈 必加：號號牌
-          });
-        });
+    if (who === 'player') {
+        // 判斷是否為連線模式
+       
+        
+        if (isOnlineMode()) {
+            // 先上傳新的骰子數據（讓對方看到新點數）
+            db.ref(`rooms/${roomId}/battle`).update({
+                lastDice: gs.dice,
+                diceActionId: Math.random()
+            }).then(() => {
+                // 再發送動作信號
+                db.ref(`rooms/${roomId}/battle/lastAction`).set({
+                    type: 'useDieOnAcc',
+                    actor: myRole,
+                    accId: 'clock',
+                    dieIdx: dropIdx,
+                    val: newVal,
+                    source: 'reroll',
+                    timestamp: Date.now(),
+                    actionId: Math.random()
+                });
+            });
+        }
 
         // 本地冷卻處理
         if(!gs.usedAccs) gs.usedAccs = [];
         gs.usedAccs.push('clock');
-        log(`⏰ 鬧鐘響起！你重擲出 ${FACES[newVal-1]}`, 'good');
-      } else {
-        // 📡 接收對手鬧鐘時的顯示
-        log(`📡 對手使用了鬧鐘，撥弄了命運...`, 'system');
-      }
+        
+        // 顯示訊息
+        log(`⏰ 鬧鐘響起！你將 ${FACES[oldVal-1]} 重擲為 ${FACES[newVal-1]}`, 'good');
+        
+        // 設定計時器，移除滾動動畫
+        setTimeout(() => {
+            if (gs && gs.dice && gs.dice[dropIdx]) {
+                gs.dice[dropIdx].rolling = false;
+                renderBattle();
+            }
+        }, 550); // 與 CSS 動畫時間一致
     }
-  },
+ } },
   
 {
     id: 'splitter', 
@@ -2350,17 +2456,13 @@ const ACCESSORIES = [
   req: '每擲出⚀',
   desc: '回合開始時擲骰，每擲出一顆點數 1 的骰子，行動卡自動 +3 點。',
   on: {
-     playerDieRolled: function(gs, val, source, actor) {
-      console.log(`🐙 觸手被呼叫！ actor: ${actor}, val: ${val}`);
+     playerDieRolled: function(gs, actor, val, source) {
       if(val === 1) {
-        console.log(`🎯 偵測到點數 1，開始加點！`);
         if(actor === 'player') {
-          gs.pts += 3;
-          console.log(`👤 玩家加點後: ${gs.pts}`);
+          gs.pts = (gs.pts || 0) + 3;
           floatAt(`+3`, document.getElementById('myCard'), 'pts');
         } else {
           gs.enemyPts += 3;
-          console.log(`🤖 對手加點後: ${gs.enemyPts}`);
           const enemyCardWrap = document.querySelector('.card-wrap:last-child .action-card');
           if(enemyCardWrap) floatAt(`+3`, enemyCardWrap, 'pts');
         }
@@ -2373,25 +2475,28 @@ const ACCESSORIES = [
     }
   },
 
-  {
-  id: 'infinite',
-  name: '無限翻轉',
-  icon: '🔄',
-  rarity: 5,
-  type: 'passive',
-  req: '行動卡翻轉累計 10 次',
-  desc: '當你的行動卡翻轉次數達到 10 次時，直接獲得勝利！',
-  
-  on: {
-    // 每次翻面時檢查
-    playerFlip: (gs, actor) => {
-      const flipCount = (actor === 'player') ? gs.flipCount : gs.enemyFlipCount;
-      if (flipCount >= 10) {
-        // 觸發勝利
-        endBattle('flip');
-      }
+ {
+    id: 'infinite',
+    name: '無限翻轉',
+    icon: '🔄',
+    rarity: 5,
+    type: 'passive',
+    req: '行動卡翻轉累計 10 次',
+    desc: '當你的行動卡翻轉次數達到 10 次時，直接獲得勝利！',
+    
+    on: {
+        // ⚡ 加上 flipCount 參數，但也可以不用，直接從 gs 讀
+        playerFlip: (gs, actor, flipCount) => {
+            // 方法1：用傳進來的
+            
+            // 方法2：直接從 gs 讀（這個應該正確，因為面板顯示正確）
+            const currentFlipCount = (actor === 'player') ? gs.flipCount : gs.enemyFlipCount;
+            
+            if (flipCount >= 10) {
+                endBattle('flip');
+            }
+        }
     }
-  }
 },
   
 
@@ -2483,7 +2588,16 @@ const ACCESSORIES = [
 
   }
   },
-  
+  {
+    id: 'clover',
+    name: '幸運草',
+    icon: '🍀',
+    rarity: 5,
+    type: 'passive',
+    req: '裝飾用',
+    desc: '四葉幸運草，據說能帶來好運。',
+    on: {}  // ⚡ 沒有任何效果，純裝飾
+},
   {
     id: 'crystal',
     name: '預言水晶',
@@ -2515,22 +2629,40 @@ const ACCESSORIES = [
     rarity: 5,
     type: 'active',
     req: '收集 ⚀ ~ ⚅ 兩輪',
-    desc: '投入尚未收集的點數。集齊兩輪 1-6 點直接獲得勝利！(此配件可跨回合累積)',
-    keepStored: true, // 特殊標記：不被回合結束清理
+    desc: '收集全部 6 種點數完成一輪。集齊兩輪直接獲勝！(骰子不能收回)',
+    keepStored: true,
+    noRefund: true,
+    syncRounds: true,  // ⚡ 新增：需要同步 medalRounds
+    
     trigger: {
-      type: 'consume',
-      faces: [1, 2, 3, 4, 5, 6],
-      count: 1
+        type: 'consume',
+        faces: [1, 2, 3, 4, 5, 6],
+        count: 1,
+        check: (gs, die, who) => {
+           // ⚡ 加個安全判斷
+            if (!die || !die.v) {
+                console.warn('獎章 check: die 不存在', die);
+                return false;
+            }
+            const ledger = (who === 'player') ? gs.playerStored : gs.enemyStored;
+            const stored = ledger['medal'] || [];
+            return !stored.includes(die.v);
+        }
     },
+    
     effect: (gs, who, dropIdx) => {
-      // 邏輯在 useAccessory 處理，這裡檢查獲勝
-      if (gs.medalRounds >= 2) {
-        log('🏅 獎章光芒萬丈！你贏得了最終勝利！', 'good');
-        setTimeout(() => endBattle('dummy'), 1000);
-      }
+        // 邏輯在 useAccessory 處理
+        const rounds = (who === 'player') ? gs.medalRounds : gs.enemyMedalRounds;
+        if (rounds >= 2) {
+            const label = (who === 'player') ? '你' : '對手';
+            log(`🏅 ${label} 的獎章光芒萬丈！贏得勝利！`, who === 'player' ? 'good' : 'bad');
+            if (who === 'player') {
+                setTimeout(() => endBattle('dummy'), 1000);
+            }
+        }
     }
-  },
-  {
+},
+{
     id: 'thorns',
     name: '荊棘反甲',
     icon: '🛡️',
@@ -2539,13 +2671,35 @@ const ACCESSORIES = [
     req: '受到傷害時',
     desc: '每受到 1 點傷害，偷取對手 6 點行動卡點數。',
     on: {
-      playerTakeDamage: (gs, victim, dmg) => {
-        // victim 是受害者，那麼 who (發動偷取的人) 就是 victim
-        // FX.stealPts 會自動處理「對手是誰」
-        FX.stealPts(gs, victim, dmg * 6, "🛡️ 荊棘反甲");
-      }
+        playerTakeDamage: (gs, victim, dmg) => {  
+            
+            if (victim === 'player') {
+                // 我受傷，偷對手的點數
+                const stealAmount = dmg * 6;
+                const available = gs.enemyPts || 0;
+                const stolen = Math.min(stealAmount, available);
+                
+                if (stolen > 0) {
+                    gs.enemyPts = Math.max(0, (gs.enemyPts || 0) - stolen);
+                    gs.pts = (gs.pts || 0) + stolen;
+                    log(`🛡️ 荊棘反甲：從對手偷了 ${stolen} 點！`, 'good');
+                }
+            } else {
+                // 對手受傷，偷我的點數
+                const stealAmount = dmg * 6;
+                const available = gs.pts || 0;
+                const stolen = Math.min(stealAmount, available);
+                
+                if (stolen > 0) {
+                    gs.pts = Math.max(0, (gs.pts || 0) - stolen);
+                    gs.enemyPts = (gs.enemyPts || 0) + stolen;
+                    log(`🛡️ 對手反甲：偷了你的 ${stolen} 點！`, 'bad');
+                }
+            }
+            
+        }
     }
-  },
+},
  {
     id: 'fate',
     name: '命運干擾',
@@ -2578,6 +2732,74 @@ const ACCESSORIES = [
     }
   },
   {
+    id: 'knife',
+    name: '小刀',
+    icon: '🔪',
+    rarity: 1,
+    type: 'active',
+    req: '⚀ + ⚁ (1+2)',
+    desc: '消耗骰子1+2，造成 1 點傷害。',
+    
+    trigger: {
+        type: 'consume',
+        faces: [1, 2],
+        count: 2
+    },
+    
+    effect: (gs, who) => {
+        const target = (who === 'player') ? 'enemy' : 'player';
+        FX.damage(gs, target, 1, who === 'player' ? "🔪 小刀" : "📡 對手小刀");
+        if (who === 'player') gs.statAtk++;
+    }
+},
+{
+    id: 'storm',
+    name: '能量風暴',
+    icon: '🌪️',
+    rarity: 3,
+    type: 'passive',
+    req: '使用行動卡時',
+    desc: '每當你發動行動卡（攻擊或治療），清空對手的行動卡點數。',
+    
+    on: {
+        playerFlip: (gs, actor, flipCount) => {
+            if (actor === 'player') {
+                // 我發動行動卡，清空對手點數
+                const oldPts = gs.enemyPts || 0;
+                if (oldPts > 0) {
+                    gs.enemyPts = 0;
+                    log(`🌪️ 能量風暴：對手的 ${oldPts} 點能量被清空了！`, 'good');
+                    
+                    // 連線模式同步
+                    if (isOnlineMode()) {
+                        db.ref(`rooms/${roomId}/battle/enemyPts`).set(0);
+                    }
+                    
+                    // 視覺效果
+                    const enemyCardWrap = document.querySelector('.card-wrap:last-child .action-card');
+                    if (enemyCardWrap) {
+                        floatAt(`-${oldPts}`, enemyCardWrap, 'pts');
+                    }
+                    renderBattle();
+                }
+            } else if (actor === 'enemy') {
+                // 對手（AI）發動行動卡，清空玩家點數
+                // PvP 模式下不走這裡（由 BattleCommander.useCard 負責）
+                // 只有單機/PvE 的 AI 回合會進來
+                if (gs.isSinglePlayer) {
+                    const oldPts = gs.pts || 0;
+                    if (oldPts > 0) {
+                        gs.pts = 0;
+                        log(`🌪️ 對手的能量風暴：你的 ${oldPts} 點能量被清空了！`, 'bad');
+                        floatAt(`-${oldPts}`, document.getElementById('myCard'), 'pts');
+                        renderBattle();
+                    }
+                }
+            }
+        }
+    }
+},
+  {
   id: 'phoenix',
   name: '不死鳥羽毛',
   icon: '🐦‍🔥',
@@ -2604,19 +2826,133 @@ const ACCESSORIES = [
     }
   }
 },
+{
+    id: 'match',
+    name: '火柴',
+    icon: '🔥',
+    rarity: 1,
+    type: 'active',
+    req: '⚂ (3)',
+    desc: '消耗骰子3，下回合多 1 顆骰子。',
+    
+    trigger: {
+        type: 'consume',
+        faces: [3],
+        count: 1
+    },
+    
+    effect: (gs, who) => {
+        FX.addDice(gs, who, 1);
+    }
+},
+{
+    id: 'reaction',
+    name: '應激反應',
+    icon: '⚡',
+    rarity: 2,
+    type: 'passive',
+    req: '受到攻擊時',
+    desc: '每當對手發動攻擊，你的下回合多擲 2 顆骰子。',
+    
+    on: {
+        playerTakeDamage: (gs, victim, dmg) => {
+            // victim 是受害者，如果是自己受傷才觸發
+            if (victim === 'player') {
+                // 對手攻擊我，我下回合多骰子
+                gs.bonusDice = (gs.bonusDice || 0) + 2;
+                log(`⚡ 應激反應：下回合 +2 顆骰子！`, 'good');
+                
+                // 連線模式同步 bonusDice  
+                if (isOnlineMode()) {
+                    db.ref(`rooms/${roomId}/battle/bonusDice`).set(gs.bonusDice);
+                }
+            } else if (victim === 'enemy') {
+                // 對手受傷，可能是對手有這個配件
+                // 這裡不用處理，因為對手的 bonusDice 會由對手自己同步
+            }
+        }
+    }
+},
 
 ];
 
 const CATEGORIES = [
   {
     label: '⚔ 主動配件', 
-    ids: ['sword', 'mirror', 'clock', 'bomb', 'splitter', 'medal', 'fate', 'chaos_mirror', 'order_book'] 
+    ids: ['match','sword','knife', 'mirror', 'clock', 'bomb', 'splitter', 'medal', 'fate', 'chaos_mirror', 'order_book'] 
   },
   {
     label: '✨ 被動配件', 
-    ids: ['shoes', 'tentacle', 'crystal', 'thorns', 'phoenix', 'infinite'] 
+    ids: ['shoes','storm','clover','reaction', 'tentacle', 'crystal', 'thorns', 'phoenix', 'infinite'] 
   }
 ];
+
+// ─────────────────────────────────────────
+//  STATE FACTORY
+// ─────────────────────────────────────────
+
+// ██████████████████████████████████████████
+//  4. 戰鬥引擎核心
+// ██████████████████████████████████████████
+
+function createBattleState(config) {
+  const playerLoadout = config.loadout || [];
+  const enemyLoadout  = config.enemyLoadout || [];
+
+  // 預建 ledger，確保每個配件都有空陣列
+  const playerStored = {};
+  const enemyStored  = {};
+  playerLoadout.forEach(id => { playerStored[id] = []; });
+  enemyLoadout.forEach(id  => { enemyStored[id]  = []; });
+
+  return {
+    // 模式標記
+    isSinglePlayer: config.isSinglePlayer ?? true,
+    isPvE:          config.isPvE          ?? false,
+
+    // 血量
+    hp: 6, dummyHp: 6,
+
+    // 行動卡
+    pts: 0, face: 'A',
+    enemyPts: 0, enemyFace: 'A',
+
+    // 計數器
+    flipCount: 0, enemyFlipCount: 0,
+    statAtk: 0, statHeal: 0, statTurn: 1,
+    enemyStatAtk: 0, enemyStatHeal: 0,
+
+    // 骰子
+    bonusDice: 0, enemyBonusDice: 0,
+    dice: [],
+
+    // 狀態
+    phase: 'roll',
+    rolled: false,
+    isAIThinking: false,
+    isGameOver: false,
+
+    // 配件
+    loadout: playerLoadout,
+    enemyLoadout: enemyLoadout,
+    usedAccs: [],
+    enemyUsedAccs: [],
+    playerStored,
+    enemyStored,
+
+    // 獎章
+    medalRounds: 0,
+    enemyMedalRounds: 0,
+
+    // 聯網專用（單機時為 undefined，不影響邏輯）
+    currentTurnPlayer:     config.currentTurnPlayer ?? undefined,
+    lastProcessedActionId: null,
+  };
+}
+
+function isOnlineMode() {
+  return !!(roomId && myRole && gs && gs.isSinglePlayer === false);
+}
 
 // ─────────────────────────────────────────
 //  STATE
@@ -2630,13 +2966,11 @@ let gs = {};
 function triggerEvent(event, actor = 'player', ...args) {
   // actor 代表現在是誰在擲骰或受傷 (player 或 enemy)
   const currentLoadout = (actor === 'player') ? gs.loadout : gs.enemyLoadout;
-    console.log(`🎯 觸發事件: ${event}, 角色: ${actor}, 配件:`, currentLoadout);  // ← 加入這行
   currentLoadout.forEach(id => {
     const acc = ACCESSORIES.find(a => a.id === id);
     if(!acc || !acc.on || !acc.on[event]) return;
-      console.log(`✅ 找到配件 ${acc.name} 有事件 ${event}`);  // ← 加入這行
     // ⚡ 確保參數順序正確：gs, 事件相關參數, actor
-    acc.on[event](gs, ...args, actor); 
+    acc.on[event](gs, actor, ...args); 
   });
 }
 
@@ -2644,8 +2978,8 @@ function triggerEvent(event, actor = 'player', ...args) {
 function clearAllLedgers() {
   if (!gs || !gs.playerStored || !gs.enemyStored) return;
 
-  [ {list: gs.loadout, ledger: gs.playerStored, name: "👤 [你]"}, 
-    {list: gs.enemyLoadout, ledger: gs.enemyStored, name: "🤖 [對手]"}
+  [ {list: gs.loadout, ledger: gs.playerStored, name: "👤 你"}, 
+    {list: gs.enemyLoadout, ledger: gs.enemyStored, name: "🤖 對手"}
   ].forEach(group => {
     group.list.forEach(id => {
       const accId = (typeof id === 'string') ? id : id.id;
@@ -2660,13 +2994,13 @@ function clearAllLedgers() {
   });
 }
 
-function canUseAccessory(acc, dice, dropIdx) {
+function canUseAccessory(acc, dice, dropIdx, who = 'player') {
   if (!acc.trigger) return false;
   const die = dice[dropIdx];
   if (!die || die.u) return false;
 
   // 1. 檢查次數限制
-  if (acc.trigger.check && !acc.trigger.check(gs)) return false;
+  if (acc.trigger.check && !acc.trigger.check(gs, die, who)) return false;
 
   const totalNeeded = acc.trigger.count || acc.trigger.faces.length;
   
@@ -2707,24 +3041,72 @@ function useAccessory(acc, dice, dropIdx, who = 'player') {
   const ownerLabel = (who === 'player') ? '👤 你' : '🤖 對手';
   const logColor = (who === 'player') ? 'good' : 'bad';
 
-  if (acc.id === 'medal') {
+if (acc.id === 'medal') {
     if (stored.includes(die.v)) {
-      if(who === 'player') log(`❌ 點數 ${FACES[die.v-1]} 這一輪已收集過！`, 'bad');
-      return;
+        if(who === 'player') {
+            log(`❌ 點數 ${FACES[die.v-1]} 這一輪已收集過！`, 'bad');
+            // 閃爍提示
+            const chip = document.getElementById(`chip_${who}_medal`);
+            if(chip) {
+                chip.style.animation = 'errorShake 0.3s ease';
+                setTimeout(() => chip.style.animation = '', 300);
+            }
+        }
+        return;
     }
+    
     die.u = true;
     stored.push(die.v);
-    if (stored.length === 6) {
-      if (who === 'player') gs.medalRounds = (gs.medalRounds || 0) + 1;
-      ledger[acc.id] = []; 
-      log(`🏅 ${ownerLabel} 的獎章完成一輪！`, logColor);
-      if (acc.effect) acc.effect(gs, who, dropIdx, dice);
-    } else {
-      if(who === 'player') log(`📥 ${ownerLabel} 收集點數 ${FACES[die.v-1]} (${stored.length}/6)`, 'system');
+    
+    if(who === 'player') {
+        log(`📥 獎章收集到 ${FACES[die.v-1]}！`, 'system');
+        updateMedalDisplay('player');
     }
+    
+    // 檢查是否完成一輪
+    if (stored.length === 6) {
+        // 更新輪數
+        if (who === 'player') {
+            gs.medalRounds = (gs.medalRounds || 0) + 1;
+        } else {
+            gs.enemyMedalRounds = (gs.enemyMedalRounds || 0) + 1;
+        }
+        
+        // ⚡ 連線模式：同步輪數
+        
+        if (isOnlineMode() && who === 'player') {
+            db.ref(`rooms/${roomId}/battle/medalRounds`).set(gs.medalRounds);
+        }
+        
+        // 清空這一輪
+        ledger[acc.id] = [];
+        
+        const roundCount = (who === 'player') ? gs.medalRounds : gs.enemyMedalRounds;
+        const ownerLabel = (who === 'player') ? '👤 你' : '🤖 對手';
+        const logColor = (who === 'player') ? 'good' : 'bad';
+        log(`🏅 ${ownerLabel} 的獎章完成第 ${roundCount} 輪！`, logColor);
+        
+        // 檢查是否勝利
+        if (roundCount >= 2) {
+            if (acc.effect) acc.effect(gs, who, dropIdx, dice);
+        } else {
+            if(who === 'player') {
+                log(`🏅 獎章開始第 ${roundCount + 1} 輪收集！`, 'system');
+                updateMedalDisplay('player');
+            }
+        }
+    } else {
+        if(who === 'player') {
+            const round = (gs.medalRounds || 0) + 1;
+            const remaining = 6 - stored.length;
+            log(`🎯 第 ${round}/2 輪，還需要 ${remaining} 種點數`, 'system');
+            updateMedalDisplay('player');
+        }
+    }
+    
     renderBattle();
     return;
-  }
+}
 
   const totalNeeded = acc.trigger.count || acc.trigger.faces.length;
   const neededNow = [...acc.trigger.faces];
@@ -2774,6 +3156,11 @@ function checkStoredReady(acc, dice) {
 // ─────────────────────────────────────────
 //  SCREENS
 // ─────────────────────────────────────────
+
+// ██████████████████████████████████████████
+//  5. 畫面 / UI 渲染
+// ██████████████████████████████████████████
+
 function goTo(id){
 
   // ⚡ 離開戰鬥相關畫面時，暫停動畫
@@ -2821,7 +3208,7 @@ function renderPrep(){
 
 function renderSlots(){
   const row = document.getElementById('equippedRow');
-  // ⚡ 核心修正：如果找不到裝備欄（因為我們移除了），就直接結束函式，不要報錯
+  // 找不到裝備欄時直接結束，避免報錯
   if (!row) return;
 
   row.innerHTML='';
@@ -2840,74 +3227,160 @@ function renderSlots(){
   document.getElementById('slotCount').textContent = loadout.length;
 }
 function renderLibrary() {
-  const body = document.getElementById('prepBody');
-  if (!body) return;
-  
-  // 1. 清空並初始化容器
-  body.innerHTML = '<div id="invFilter"></div>'; 
-  createFilterUI('invFilter', renderLibrary); 
-
-  CATEGORIES.forEach(cat => {
-    // 2. 篩選與排序
-    let filteredIds = cat.ids.filter(id => {
-      const acc = ACCESSORIES.find(a => a.id === id);
-      const matchType = (currentFilter.type === 'all' || acc.type === currentFilter.type);
-      const matchRarity = (currentFilter.rarity === 'all' || acc.rarity.toString() === currentFilter.rarity);
-      return matchType && matchRarity;
-    });
-
-    filteredIds.sort((aId, bId) => {
-      const accA = ACCESSORIES.find(a => a.id === aId);
-      const accB = ACCESSORIES.find(a => a.id === bId);
-      return currentFilter.sort === 'high' ? accB.rarity - accA.rarity : accA.rarity - accB.rarity;
-    });
-
-    if (filteredIds.length === 0) return;
-
-    // 3. 建立區塊
-    const sec = document.createElement('div');
-    sec.className = 'cat-section';
-    sec.innerHTML = `<div class="cat-label"><span></span>${cat.label}<span></span></div>`;
+    const body = document.getElementById('prepBody');
+    if (!body) return;
     
-    const grid = document.createElement('div');
-    grid.className = 'acc-grid';
+    // 1. 清空並初始化容器（過濾器還在！）
+    body.innerHTML = '<div id="invFilter"></div>'; 
+    createFilterUI('invFilter', renderLibrary); 
 
-    filteredIds.forEach(id => {
-      const acc = ACCESSORIES.find(a => a.id === id);
-      const isOwned = playerAccount.warehouse.includes(id); 
-      const eq = loadout.includes(id);
-      const full = loadout.length >= 5 && !eq;
+    // 2. 取得所有配件
+    const allAccs = ACCESSORIES;
+    
+    // 3. 分離已擁有和未擁有的配件
+    const ownedIds = playerAccount.warehouse;
+    const ownedAccs = allAccs.filter(acc => ownedIds.includes(acc.id));
+    const unownedAccs = allAccs.filter(acc => !ownedIds.includes(acc.id));
+    
+    // 4. 計算總數（考慮過濾器）
+    const totalAfterFilter = allAccs.filter(acc => {
+        const matchType = (currentFilter.type === 'all' || acc.type === currentFilter.type);
+        const matchRarity = (currentFilter.rarity === 'all' || acc.rarity.toString() === currentFilter.rarity);
+        return matchType && matchRarity;
+    }).length;
+    
+    const ownedAfterFilter = ownedAccs.filter(acc => {
+        const matchType = (currentFilter.type === 'all' || acc.type === currentFilter.type);
+        const matchRarity = (currentFilter.rarity === 'all' || acc.rarity.toString() === currentFilter.rarity);
+        return matchType && matchRarity;
+    }).length;
+    
+    // 5. 根據篩選條件過濾（保留過濾功能）
+    const filterAccs = (accs) => {
+        return accs.filter(acc => {
+            const matchType = (currentFilter.type === 'all' || acc.type === currentFilter.type);
+            const matchRarity = (currentFilter.rarity === 'all' || acc.rarity.toString() === currentFilter.rarity);
+            return matchType && matchRarity;
+        });
+    };
+    
+    // 6. 排序函式（保留排序功能）
+    const sortAccs = (accs) => {
+        return accs.sort((a, b) => {
+            return currentFilter.sort === 'high' ? b.rarity - a.rarity : a.rarity - b.rarity;
+        });
+    };
+    
+    // 7. 過濾和排序
+    const filteredOwned = sortAccs(filterAccs(ownedAccs));
+    const filteredUnowned = sortAccs(filterAccs(unownedAccs));
 
-      const card = document.createElement('div');
-      // ⚡ 修正：確保 class 包含 acc-card 基礎樣式
-      card.className = `acc-card ${eq ? 'equipped' : ''} ${full ? 'maxed' : ''} ${!isOwned ? 'locked' : ''}`;
-
-      card.innerHTML = `
-        <div class="equipped-tick">✓</div>
-        ${!isOwned ? '<div class="locked-badge">未解鎖</div>' : ''}
-        <div class="acc-top">
-          <div class="acc-icon-wrap">${acc.icon}</div>
-          <div class="acc-meta">
-            <div style="display:flex; align-items:center; gap:6px;">
-              <div class="acc-name">${acc.name}</div>
-              <div class="rarity-star-v2">${'★'.repeat(acc.rarity)}</div>
-            </div>
-            <div class="acc-type-badge ${acc.type === 'active' ? 'badge-active' : 'badge-passive'}">
-              ${acc.type === 'active' ? '⚡主動' : '✨被動'}
-            </div>
-          </div>
+    // 8. 顯示收集進度總覽
+    const progressBar = document.createElement('div');
+    progressBar.className = 'collection-progress';
+    progressBar.style.cssText = `
+        background: rgba(0,0,0,0.3);
+        padding: 0.8rem;
+        margin: 0.5rem 0 1rem 0;
+        border-radius: var(--r-lg);
+        border: 1px solid var(--gold-dk);
+        text-align: center;
+    `;
+    
+    const percentage = totalAfterFilter > 0 ? Math.round((ownedAfterFilter / totalAfterFilter) * 100) : 0;
+    
+    progressBar.innerHTML = `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem; font-size: 0.7rem;">
+            <span style="color: var(--gold-lt);">📊 配件收集進度</span>
+            <span style="color: var(--parch-dim);">${ownedAfterFilter} / ${totalAfterFilter}</span>
         </div>
-        <div class="acc-desc">${acc.desc}</div>
-      `;
+        <div style="width: 100%; height: 8px; background: var(--smoke-lt); border-radius: 4px; overflow: hidden;">
+            <div style="width: ${percentage}%; height: 100%; background: linear-gradient(90deg, var(--gold-dk), var(--gold-lt));"></div>
+        </div>
+       
+    `;
+    
+    body.appendChild(progressBar);
 
-      card.onclick = () => showTip(acc); // 在背包頁點擊，就只是看詳細說明
-      grid.appendChild(card);
-
-    });
-
-    sec.appendChild(grid);
-    body.appendChild(sec);
-  });
+    // 9. 顯示已擁有的配件
+    if (filteredOwned.length > 0) {
+        const ownedSection = document.createElement('div');
+        ownedSection.className = 'cat-section';
+        ownedSection.innerHTML = `<div class="cat-label"><span></span>📦 已擁有的配件 (${filteredOwned.length})<span></span></div>`;
+        
+        const ownedGrid = document.createElement('div');
+        ownedGrid.className = 'acc-grid';
+        
+        filteredOwned.forEach(acc => {
+            const card = document.createElement('div');
+            card.className = 'acc-card';
+            
+            card.innerHTML = `
+                <div class="acc-top">
+                    <div class="acc-icon-wrap">${acc.icon}</div>
+                    <div class="acc-meta">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <div class="acc-name">${acc.name}</div>
+                            <div class="rarity-star-v2">${'★'.repeat(acc.rarity)}</div>
+                        </div>
+                        <div class="acc-type-badge ${acc.type === 'active' ? 'badge-active' : 'badge-passive'}">
+                            ${acc.type === 'active' ? '⚡主動' : '✨被動'}
+                        </div>
+                    </div>
+                </div>
+                <div class="acc-desc">${acc.desc}</div>
+            `;
+            
+            card.onclick = () => showTip(acc);
+            ownedGrid.appendChild(card);
+        });
+        
+        ownedSection.appendChild(ownedGrid);
+        body.appendChild(ownedSection);
+    }
+    
+    // 10. 顯示未擁有的配件
+    if (filteredUnowned.length > 0) {
+        const unownedSection = document.createElement('div');
+        unownedSection.className = 'cat-section';
+        unownedSection.innerHTML = `<div class="cat-label"><span></span>🔒 尚未擁有的配件 (${filteredUnowned.length})<span></span></div>`;
+        
+        const unownedGrid = document.createElement('div');
+        unownedGrid.className = 'acc-grid';
+        
+        filteredUnowned.forEach(acc => {
+            const card = document.createElement('div');
+            card.className = 'acc-card locked';
+            
+            card.innerHTML = `
+                <div class="locked-badge">未解鎖</div>
+                <div class="acc-top">
+                    <div class="acc-icon-wrap">${acc.icon}</div>
+                    <div class="acc-meta">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <div class="acc-name">${acc.name}</div>
+                            <div class="rarity-star-v2">${'★'.repeat(acc.rarity)}</div>
+                        </div>
+                        <div class="acc-type-badge ${acc.type === 'active' ? 'badge-active' : 'badge-passive'}">
+                            ${acc.type === 'active' ? '⚡主動' : '✨被動'}
+                        </div>
+                    </div>
+                </div>
+                <div class="acc-desc">${acc.desc}</div>
+            `;
+            
+            card.onclick = () => showTip(acc);
+            unownedGrid.appendChild(card);
+        });
+        
+        unownedSection.appendChild(unownedGrid);
+        body.appendChild(unownedSection);
+    }
+    
+    // 11. 如果完全沒有配件（過濾後可能發生）
+    if (filteredOwned.length === 0 && filteredUnowned.length === 0) {
+        body.innerHTML += '<p style="text-align:center; color:var(--parch-dim); padding:2rem;">📭 沒有符合條件的配件</p>';
+    }
 }
 function renderShop() {
     const shopEl = document.getElementById('tabShop');
@@ -2925,8 +3398,9 @@ function renderShop() {
             <!-- 碎片顯示 -->
             <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 1rem; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: var(--r);">
                 
-              <span style="font-size: 1.2rem;">🧩</span> 
               <span style="font-family:'MedievalSharp'; color:var(--gold-lt);">造型碎片: <span id="shardCount">${playerAccount.shards || 0}</span></span>
+              <span style="font-size: 1.2rem;">🧩</span> 
+              
                 </div>
             
             <div style="display: flex; gap: 1rem; align-items: center; justify-content: center; margin-bottom: 1rem;">
@@ -3072,22 +3546,36 @@ function gachaPull() {
         }
         
         if (isDuplicate) {
-            // 抽到重複：獲得 1 個造型碎片
-            playerAccount.shards = (playerAccount.shards || 0) + 1;
+            // 抽到重複：根據稀有度獲得不同數量的碎片
+            let shardsEarned = 0;
+            
+            // 稀有度對應的碎片數量：1⭐=1片，2⭐=2片，3⭐=3片，4⭐=4片，5⭐=5片
+            switch(selectedRarity) {
+                case 5: shardsEarned = 5; break;
+                case 4: shardsEarned = 4; break;
+                case 3: shardsEarned = 3; break;
+                case 2: shardsEarned = 2; break;
+                default: shardsEarned = 1; break;
+            }
+            
+            playerAccount.shards = (playerAccount.shards || 0) + shardsEarned;
+            
+            // 顯示星星的符號
+            const stars = '★'.repeat(selectedRarity);
             
             resultHtml = `
                 <div style="background: ${bgColor}; padding: 1rem; border-radius: var(--r-lg); color: var(--ink);">
                     <div style="font-size: 2rem; margin-bottom: 0.5rem;">${wonAcc.icon}</div>
                     <div style="font-weight: bold;">${wonAcc.name}</div>
-                    <div style="font-size: 0.8rem; margin: 0.5rem 0;">⭐ ${selectedRarity}</div>
+                    <div style="font-size: 0.8rem; margin: 0.5rem 0; color: #ffcc00;">${stars}</div>
                     <div style="color: #8b4513; font-weight: bold;">⚠️ 已擁有</div>
                     <div style="margin-top: 0.5rem; padding: 0.3rem; background: rgba(0,0,0,0.2); border-radius: var(--r);">
-                        獲得 🧩 造型碎片 x1（總共 ${playerAccount.shards}）
+                        獲得 造型碎片 x${shardsEarned} 🧩（總共 ${playerAccount.shards} 🧩）
                     </div>
                 </div>
             `;
             
-            showTavernMsg(`🧩 獲得造型碎片 x1！`);
+            showTavernMsg(`獲得造型碎片 x${shardsEarned} 🧩！`);
         } else {
             // 抽到新配件：加入倉庫
             playerAccount.warehouse.push(wonAcc.id);
@@ -3302,13 +3790,6 @@ function buyItem(id, price) {
   }
 }
         
-        // 3. 核心動作：同步更新與存檔
-        syncAccountUI();      // 更新錢包顯示
-        renderShop();        // ⚡ 關鍵：讓商品立刻從貨架消失
-        renderLibrary();     // 更新背包清單
-        saveAccountToCloud(); // 💾 同步到 Firebase 雲端
-        
-        // 4. 裝飾性提示
         
 
 function addAcc(id){
@@ -3357,6 +3838,11 @@ function updateBattleBtn(){
 // ─────────────────────────────────────────
 //  BATTLE
 // ─────────────────────────────────────────
+
+// ██████████████████████████████████████████
+//  6. 戰鬥流程
+// ██████████████████████████████████████████
+
 function startBattle(){
   gameInstanceId++;
 
@@ -3371,33 +3857,14 @@ function startBattle(){
 
   const battleLoadout = [...loadout];
 
-  // 3. 核心狀態初始化（一次搞定）
-  gs = {
-    isSinglePlayer: true,  // ⚡ 在這裡加入標記！
+  // 3. 核心狀態初始化
+  gs = createBattleState({
+    isSinglePlayer: true,
     loadout: battleLoadout,
-    hp:6, dummyHp:6,
-    pts:0, face:'A',
-    enemyPts:0, enemyFace:'A',
-    flipCount:0, enemyFlipCount:0,
-    statAtk:0, statHeal:0, statTurn:1,
-    bonusDice:0, enemyBonusDice:0,
-    phase:'roll', 
-    rolled:false,
-    dice:[],
     enemyLoadout: enemyLoadout,
-    playerStored: {},
-    enemyStored: {},  
-    enemyUsedAccs: [],
-    isAIThinking: false
-  };
-
-  // 4. 清空對手配件槽
-  gs.enemyLoadout.forEach(id => {
-    const acc = ACCESSORIES.find(a => a.id === id);
-    if (acc) acc.stored = [];
   });
 
-  // 5. 切換畫面並渲染
+  // 4. 切換畫面並渲染
   goTo('battleScreen');
   
   requestAnimationFrame(() => {
@@ -3417,7 +3884,6 @@ function startBattle(){
 }
 
 function startPvELobby() {
-  console.log("🎮 進入練習模式大廳");
   
   // 清空房間相關變數（避免干擾）
   roomId = null;
@@ -3440,53 +3906,18 @@ function startPvELobby() {
 }
 
 function startPvEBattle() {
-  console.log("🤖 開始對戰電腦");
   
   // 隨機生成對手配件
   const aiPool = ACCESSORIES.filter(a => a.id !== 'medal').map(a => a.id);
   const enemyLoadout = aiPool.sort(() => 0.5 - Math.random()).slice(0, 3);
   
-  // ===== 🚨 為每個配件建立儲存陣列 =====
-  const playerStored = {};
-  const enemyStored = {};
-  
-  // 為你的每個配件建立空陣列
-  loadout.forEach(id => {
-    playerStored[id] = [];
-  });
-  
-  // 為對手的每個配件建立空陣列
-  enemyLoadout.forEach(id => {
-    enemyStored[id] = [];
-  });
-  // ====================================
-  
   // 初始化戰鬥狀態
-  gs = {
+  gs = createBattleState({
     isSinglePlayer: true,
     isPvE: true,
-    loadout: [...loadout],  // 使用在大廳選的配件
-    hp: 6,
-    dummyHp: 6,
-    pts: 0,
-    face: 'A',
-    enemyPts: 0,
-    enemyFace: 'A',
-    flipCount: 0,
-    enemyFlipCount: 0,
-    statAtk: 0,
-    statHeal: 0,
-    statTurn: 1,
-    bonusDice: 0,
-    enemyBonusDice: 0,
-    phase: 'roll',
-    rolled: false,
-    dice: [],
+    loadout: [...loadout],
     enemyLoadout: enemyLoadout,
-    playerStored: playerStored,  // ✅ 使用初始化好的物件
-    enemyStored: enemyStored,    // ✅ 使用初始化好的物件
-    isAIThinking: false
-  };
+  });
   
   // 切換到戰鬥畫面
   goTo('battleScreen');
@@ -3511,6 +3942,14 @@ function renderBattle(){
   renderPhase();
   renderStats();
   updateCtrl();
+
+   // ⚡ 更新獎章顯示
+    if (gs.loadout && gs.loadout.includes('medal')) {
+        updateMedalDisplay('player');
+    }
+    if (gs.enemyLoadout && gs.enemyLoadout.includes('medal')) {
+        updateMedalDisplay('enemy');
+    }
 }
 
 function renderHP(){
@@ -3574,60 +4013,128 @@ function renderAccBar() {
     enemyBar.appendChild(createAccChip(id, 'enemy'));
   });
 }
-
 function createAccChip(id, owner) {
-  const acc = ACCESSORIES.find(a => a.id === id);
-  if (!acc) return document.createElement('div');
-  
-  // 🛡️ 從正確的帳本拿進度
-  const ledger = (owner === 'player') ? gs.playerStored : gs.enemyStored;
-  const stored = ledger ? (ledger[id] || []) : [];
-
-  const chip = document.createElement('div');
-  const isStoring = stored.length > 0; // 改用帳本長度判定
-  
-  chip.className = 'acc-chip' + (isStoring ? ' storing' : '');
-  chip.id = `chip_${owner}_${id}`;
-  
-  // 死亡或消耗判定
-  const isUsed = (id === 'phoenix' && (owner === 'player' ? gs.playerPhoenixUsed : gs.enemyPhoenixUsed));
-  if (isUsed) chip.classList.add('exhausted');
-
-  const totalNeeded = acc.trigger?.count || (acc.trigger?.faces ? acc.trigger.faces.length : 0);
-  const progressText = (totalNeeded > 1) ? ` (${stored.length}/${totalNeeded})` : '';
-
-  chip.innerHTML = `
-    <div class="chip-ico">${acc.icon}</div>
-    <div class="chip-nm">${acc.name}${progressText}</div>
-    ${isStoring && owner === 'player' ? '<div style="font-size:0.4rem; color:var(--ember-glow); margin-top:2px;">[點擊退還]</div>' : ''}
-    ${acc.type === 'passive' ? '<div class="chip-passive">被動</div>' : ''}
-  `;
-
-  // 在 chip.onclick 的 if (owner === 'player' && isStoring) 裡面修改：
-chip.onclick = () => {
-    if (owner === 'player' && isStoring) {
-      // 1. ⚡ 聯網廣播：告訴對手我要收回這個配件裡的骰子
-      db.ref(`rooms/${roomId}/battle/lastAction`).set({
-        type: 'refundAcc',
-        actor: myRole,
-        accId: id,
-        timestamp: Date.now(),
-        actionId: Math.random()
-      });
-
-      // 2. 本地立即反應
-      stored.forEach(val => {
-        const target = gs.dice.find(d => d.u && d.v === val);
-        if (target) target.u = false;
-      });
-      ledger[id] = []; 
-      log(`📤 已從 ${acc.name} 退回骰子`, 'system');
-      renderBattle();
+    const acc = ACCESSORIES.find(a => a.id === id);
+    if (!acc) return document.createElement('div');
+    
+    const ledger = (owner === 'player') ? gs.playerStored : gs.enemyStored;
+    const stored = ledger ? (ledger[id] || []) : [];
+    const isStoring = stored.length > 0;
+    
+    const chip = document.createElement('div');
+    chip.className = 'acc-chip' + (isStoring ? ' storing' : '');
+    chip.id = `chip_${owner}_${id}`;
+    
+    // 特殊處理獎章
+    if (id === 'medal') {
+        const rounds = (owner === 'player') ? (gs.medalRounds || 0) : (gs.enemyMedalRounds || 0);
+        const currentRound = rounds + 1;
+        
+        let medalHtml = `<div class="chip-ico">🏅</div>`;
+        medalHtml += `<div class="chip-nm">榮譽獎章</div>`;
+        
+        // 顯示已收集的點數
+        if (stored.length > 0) {
+            medalHtml += `<div class="medal-progress">`;
+            [1,2,3,4,5,6].forEach(v => {
+                const collected = stored.includes(v);
+                medalHtml += `<span class="medal-dot ${collected ? 'collected' : ''}">${collected ? FACES[v-1] : ''}</span>`;
+            });
+            medalHtml += `</div>`;
+        }
+        
+        // 顯示輪數
+        medalHtml += `<div class="medal-round">第 ${currentRound}/2 輪</div>`;
+        
+        chip.innerHTML = medalHtml;
     } else {
-      showTip(acc);
+        // 一般配件
+        const totalNeeded = acc.trigger?.count || (acc.trigger?.faces ? acc.trigger.faces.length : 0);
+        const progressText = (totalNeeded > 1) ? ` (${stored.length}/${totalNeeded})` : '';
+        
+        chip.innerHTML = `
+            <div class="chip-ico">${acc.icon}</div>
+            <div class="chip-nm">${acc.name}${progressText}</div>
+            ${isStoring && owner === 'player' && !acc.noRefund ? '<div style="font-size:0.4rem; color:var(--ember-glow); margin-top:2px;">[點擊退還]</div>' : ''}
+            ${acc.type === 'passive' ? '<div class="chip-passive">被動</div>' : ''}
+        `;
     }
-};
-  return chip;
+    
+    // 點擊事件
+    chip.onclick = () => {
+        if (owner === 'player' && isStoring) {
+            // 獎章特殊處理：不能退回
+            if (acc.noRefund) {
+                log(`🏅 獎章投入的骰子不能收回！`, 'system');
+                
+                // 顯示詳細進度
+                const rounds = (gs.medalRounds || 0);
+                const currentRound = rounds + 1;
+                const collected = stored.map(v => FACES[v-1]).join(' ');
+                const needed = [1,2,3,4,5,6].filter(v => !stored.includes(v)).map(v => FACES[v-1]).join(' ');
+                
+                log(`🏅 第 ${currentRound}/2 輪進度:`, 'system');
+                if (stored.length > 0) log(`已收集: ${collected}`, 'system');
+                log(`還需要: ${needed}`, 'system');
+                return;
+            }
+            
+            // 一般配件的退回邏輯
+          
+
+           if (isOnlineMode()) {
+                db.ref(`rooms/${roomId}/battle/lastAction`).set({
+                    type: 'refundAcc',
+                    actor: myRole,
+                    accId: id,
+                    timestamp: Date.now(),
+                    actionId: Math.random()
+                }).catch(err => {
+                    console.error("❌ 聯網廣播失敗:", err);
+                });
+            }
+            
+            const storedValues = [...stored];
+            storedValues.forEach(val => {
+                const target = gs.dice.find(d => d.u && d.v === val);
+                if (target) target.u = false;
+            });
+            ledger[id] = [];
+            
+            log(`📤 已從 ${acc.name} 退回骰子`, 'system');
+            renderBattle();
+        } else {
+            showTip(acc);
+        }
+    };
+    
+    return chip;
+}
+
+function updateMedalDisplay(who) {
+    const chip = document.getElementById(`chip_${who}_medal`);
+    if (!chip) return;
+    
+    const ledger = (who === 'player') ? gs.playerStored : gs.enemyStored;
+    const stored = ledger['medal'] || [];
+    const rounds = (who === 'player') ? (gs.medalRounds || 0) : (gs.enemyMedalRounds || 0);
+    const currentRound = rounds + 1;
+    
+    let medalHtml = `<div class="chip-ico">🏅</div>`;
+    medalHtml += `<div class="chip-nm">榮譽獎章</div>`;
+    
+    // 顯示已收集的點數
+    medalHtml += `<div class="medal-progress">`;
+    [1,2,3,4,5,6].forEach(v => {
+        const collected = stored.includes(v);
+        medalHtml += `<span class="medal-dot ${collected ? 'collected' : ''}">${collected ? FACES[v-1] : ''}</span>`;
+    });
+    medalHtml += `</div>`;
+    
+    // 顯示輪數
+    medalHtml += `<div class="medal-round">第 ${currentRound}/2 輪</div>`;
+    
+    chip.innerHTML = medalHtml;
 }
 
 function renderEnemyAccIcons() {
@@ -3838,7 +4345,7 @@ function useDieOnAcc(idx, accId) {
   const acc = ACCESSORIES.find(a => a.id === accId);
   if (!acc || acc.type === 'passive') return;
 
-  if (!canUseAccessory(acc, gs.dice, idx)) {
+   if (!canUseAccessory(acc, gs.dice, idx, 'player')) {
     const chip = document.getElementById('chip_player_' + accId);
     if(chip) {
       chip.style.animation = 'none';
@@ -3935,10 +4442,15 @@ function doEndTurn(){
     });
   }
 
-  Object.keys(gs.playerStored).forEach(id => {
+   Object.keys(gs.playerStored).forEach(id => {
     const acc = ACCESSORIES.find(a => a.id === id);
     if (!acc || !acc.keepStored) gs.playerStored[id] = [];
-  });
+   });
+
+
+    // ⚡⚡⚡ 關鍵修正：重置本回合用過的配件清單
+  gs.usedAccs = [];
+  gs.enemyUsedAccs = [];
 
   if (!isSinglePlayer && roomId) {
     const nextPlayer = (myRole === 'host') ? 'guest' : 'host';
@@ -3951,6 +4463,13 @@ function doEndTurn(){
   } else {
     // 單機模式：直接交給 AI
     setTimeout(() => doEnemyTurn(), 1000);
+  }
+
+  triggerEvent('playerTurnEnd', 'player');
+
+  // 確保點數還是數字
+  if (typeof gs.pts !== 'number' || isNaN(gs.pts)) {
+    gs.pts = 0;
   }
 
   log(`─── 你結束了回合 ───`, 'system');
@@ -4006,7 +4525,7 @@ if (gs.statTurn >= 3) {
   const icons = { flip: '🔄', dummy: '⚔', lose: '💀' };
   const titles = { flip: '翻轉大師', dummy: '強敵擊破', lose: '落敗' };
   const reasons = {
-    flip: `行動卡翻轉達到 ${gs.flipCount} / 20 次！`,
+    flip: `行動卡翻轉達到 ${gs.flipCount} 次！`,
     dummy: `成功擊敗了對手！`,
     lose: '你的血量歸零了，在迷霧中倒下...',
   };
@@ -4090,7 +4609,6 @@ function setupDrag(el,idx){
     const canAct = isSinglePlayer ? true : (myRole === gs.currentTurnPlayer);
     
     if (!canAct) {
-      console.log("酒館老闆：『客人，現在不是你的回合，別亂動骰子！』");
       return; 
     }
     e.preventDefault(); 
@@ -4164,7 +4682,7 @@ function setDropHighlights(on){
     const chip = document.getElementById('chip_player_' + id);
     
     if (chip && acc) {
-      if (on && acc.type === 'active' && canUseAccessory(acc, gs.dice, dragIdx)) {
+      if (on && acc.type === 'active' && canUseAccessory(acc, gs.dice, dragIdx, 'player')) {
         chip.classList.add('droptarget');
       } else {
         chip.classList.remove('droptarget');
@@ -4263,12 +4781,17 @@ function closeTip(){ document.getElementById('tipOverlay').classList.add('out');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+
+// ██████████████████████████████████████████
+//  7. AI
+// ██████████████████████████████████████████
+
 async function doEnemyTurn() {
+  gs.enemyUsedAccs = [];
   const currentId = gameInstanceId;
   gs.isAIThinking = true;
   renderBattle();
-  gs.enemyUsedAccs = []; 
-
+  
   triggerEvent('playerTurnStart', 'enemy');
 
   log('🤖 對手正在思考下一步...', 'system');
@@ -4283,7 +4806,7 @@ async function doEnemyTurn() {
     let v = (i === 0 && gs.enemyNextDie) ? gs.enemyNextDie : rand(1, 6);
     if (i === 0 && gs.enemyNextDie) gs.enemyNextDie = null;
     aiDice.push({ v, u: false });
-  triggerEvent('playerDieRolled', 'enemy', v, 'start'); 
+    triggerEvent('playerDieRolled', 'enemy', v, 'start'); 
   }
   log(`🎲 對手擲出了：${aiDice.map(d => FACES[d.v - 1]).join(' ')}`, 'bad');
 
@@ -4296,11 +4819,12 @@ async function doEnemyTurn() {
       const acc = ACCESSORIES.find(a => a.id === accId);
       if (!acc || acc.type === 'passive' || gs.enemyUsedAccs.includes(accId) || !acc.trigger) continue;
       
-      if (acc.trigger.faces && acc.trigger.faces.includes(die.v)) {
-        // ⚡ 重要：明確告訴系統是 'enemy' 在充能
-        useAccessory(acc, aiDice, aiDice.indexOf(die), 'enemy'); 
-        renderBattle(); // 強制刷新讓玩家看見充能亮框
-        await sleep(800); // 給玩家眼睛留出反應時間
+      // ⚡⚡⚡ 關鍵修正：使用 canUseAccessory 檢查
+      const dieIdx = aiDice.indexOf(die);
+      if (canUseAccessory(acc, aiDice, dieIdx, 'enemy')) {
+        useAccessory(acc, aiDice, dieIdx, 'enemy'); 
+        renderBattle();
+        await sleep(800);
         
         acted = true;
         break;
@@ -4314,27 +4838,33 @@ async function doEnemyTurn() {
     }
   }
 
-  // 行動卡檢查
-  const eMax = gs.enemyFace === 'A' ? 8 : 24;
-  if (gs.enemyPts >= eMax) {
+// 行動卡檢查
+const eMax = gs.enemyFace === 'A' ? 8 : 24;
+if (gs.enemyPts >= eMax) {
     await sleep(600);
     if (currentId !== gameInstanceId) return;
+    
     gs.enemyPts -= eMax;
     gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
     gs.enemyFlipCount = (gs.enemyFlipCount || 0) + 1;
 
+    // 透過事件系統觸發被動配件（storm、infinite 等都會自動運作）
+    triggerEvent('playerFlip', 'enemy', gs.enemyFlipCount);
+
     if (gs.dummyHp <= 3 && Math.random() < 0.4) {
-      FX.heal(gs, 'enemy', 1, "🃏 對手使用行動卡");
+        FX.heal(gs, 'enemy', 1, "🃏 對手使用行動卡");
     } else {
-      FX.damage(gs, 'player', 1, "🃏 對手使用行動卡");
+        FX.damage(gs, 'player', 1, "🃏 對手使用行動卡");
     }
     renderBattle();
     checkWin();
-  }
+}
 
   await sleep(1000);
   if (currentId !== gameInstanceId) return;
+
   clearAllLedgers();
+  triggerEvent('playerTurnEnd', 'enemy');
   gs.isAIThinking = false;
   gs.statTurn++;
   gs.phase = 'roll';
@@ -4354,6 +4884,9 @@ function closeRules() {
   if (rules) rules.classList.add('out'); 
 }
 
+// ██████████████████████████████████████████
+//  8. 網路對戰
+// ██████████████████████████████████████████
 
 // ⚡ 全新房間加入邏輯
 function joinOnlineRoom() {
@@ -4900,31 +5433,18 @@ function startOnlineBattle() {
     return;
   }
 
+  // 移除大廳的房間監聽，避免戰鬥中被意外觸發
+  db.ref('rooms/' + roomId).off();
+
   // 1. 初始化戰鬥狀態 (聯網版)
-  gs = {
-    isSinglePlayer: false, // ⚡ 明確標記為聯網模式
-    hp: 6, dummyHp: 6,           // 這裡是玩家 vs 真人對手
-    pts: 0, face: 'A',
-    enemyPts: 0, enemyFace: 'A',
-    // ⚡ 統計數據初始化
-    statAtk: 0,        // 我的總攻擊次數
-    statHeal: 0,       // 我的總治療次數
-    enemyStatAtk: 0,   // 對手的總攻擊次數
-    enemyStatHeal: 0,  // 對手的總治療次數
-    flipCount: 0, 
-    enemyFlipCount: 0,
-    statTurn: 1,
-    phase: 'roll',               // 起始階段
-    isAIThinking: false,         // 真人對戰不需 AI 思考
-    dice: [],
-    loadout: [...loadout],       // 你的配件
-    enemyLoadout: [...gs.enemyLoadout], // 對手的配件 (剛才揭曉的)
-    playerStored: {},
-    enemyStored: {},
-    currentTurnPlayer: 'host',   // ⚡ 規定永遠由房主先攻
-    usedAccs: [],
-    enemyUsedAccs: []
-  };
+  // 注意：先存下對手的配件列表，因為 createBattleState 會覆寫 gs
+  const savedEnemyLoadout = [...gs.enemyLoadout];
+  gs = createBattleState({
+    isSinglePlayer: false,
+    loadout: [...loadout],
+    enemyLoadout: savedEnemyLoadout,
+    currentTurnPlayer: 'host',
+  });
 
   // 2. 切換到戰鬥畫面
   goTo('battleScreen');
@@ -4951,6 +5471,11 @@ function listenToBattleActions() {
   battleRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
+    
+     // ⚡ 同步 bonusDice
+        if (data.bonusDice !== undefined) {
+            gs.bonusDice = data.bonusDice;
+        }
 
    // A. 判定勝負
     if (data.status === 'game-over' && !gs.isGameOver) {
@@ -5019,58 +5544,51 @@ function listenToBattleActions() {
     }, 50);
   });
 }
-// 離開房間（完整清理版）
+// 通用房間清理函式
+function cleanupRoom(msg) {
+  if (reconnectTimer) {
+    clearInterval(reconnectTimer);
+    reconnectTimer = null;
+  }
+  if (roomId && myRole) {
+    const roomRef = db.ref('rooms/' + roomId);
+    roomRef.off();
+    if (myRole === 'host') {
+      roomRef.remove();
+    } else if (myRole === 'guest') {
+      roomRef.update({
+        guest: null,
+        guest_ready: null,
+        guest_loadout: null,
+        status: 'waiting',
+        timestamp: Date.now()
+      });
+    }
+    db.ref(`users/${myUID}/currentRoom`).remove();
+  }
+  roomId = null;
+  myRole = null;
+  isReady = false;
+  isInBattle = false;
+  loadout = [];
+  lobbyMode = 'pvp';
+  if (msg) showTavernMsg(msg);
+}
+
+// 離開房間（大廳畫面）
 function quitRoom() {
   cancelMatching();
-  
-  // 如果是 PvE 模式，直接回酒館內部
+
   if (lobbyMode === 'pve') {
-    roomId = null;
-    myRole = null;
-    isReady = false;
-    loadout = [];
-    isInBattle = false;
-    lobbyMode = 'pvp';
+    cleanupRoom('🏃 已離開練習模式');
     goTo('prepScreen');
     switchTab('tabBattle', '對戰');
-    showTavernMsg("🏃 已離開練習模式");
     return;
   }
-  
-  // 使用自訂的確認視窗
-  showConfirmDialog("確定要離開對局室嗎？", () => {
-    if (reconnectTimer) {
-      clearInterval(reconnectTimer);
-      reconnectTimer = null;
-    }
 
-    if (roomId && myRole) {
-      const roomRef = db.ref('rooms/' + roomId);
-      roomRef.off();
-      
-      if (myRole === 'host') {
-        roomRef.remove();
-        showTavernMsg("🏠 房間已關閉");
-      } else {
-        roomRef.update({
-          guest: null,
-          guest_ready: null,
-          guest_loadout: null,
-          status: 'waiting',
-          timestamp: Date.now()
-        });
-        showTavernMsg("👋 已離開房間");
-      }
-      db.ref(`users/${myUID}/currentRoom`).remove();
-    }
-    
-    roomId = null;
-    myRole = null;
-    isReady = false;
-    loadout = [];
-    isInBattle = false;
-    lobbyMode = 'pvp';
-    
+  showConfirmDialog('確定要離開對局室嗎？', () => {
+    const wasHost = (myRole === 'host');
+    cleanupRoom(wasHost ? '🏠 房間已關閉' : '👋 已離開房間');
     goTo('prepScreen');
     switchTab('tabBattle', '準備戰鬥');
   });
@@ -5078,60 +5596,15 @@ function quitRoom() {
 
 // 戰鬥中離開
 function quitBattle() {
-  showConfirmDialog("確定要離開戰鬥嗎？", () => {
-    // 清理房間（如果是 PvP）
-    if (roomId) {
-      if (myRole === 'host') {
-        db.ref('rooms/' + roomId).remove();
-      } else if (myRole === 'guest') {
-        db.ref('rooms/' + roomId).update({
-          guest: null,
-          guest_ready: null,
-          guest_loadout: null,
-          status: 'waiting'
-        });
-      }
-    }
-    
-    // 重置所有狀態
-    isInBattle = false;
-    roomId = null;
-    myRole = null;
-    isReady = false;
-    loadout = [];
-    lobbyMode = 'pvp';
-    
-    // 回到酒館大門
+  showConfirmDialog('確定要離開戰鬥嗎？', () => {
+    cleanupRoom('🏃 已離開戰鬥');
     goTo('tavernDoorScreen');
-    showTavernMsg("🏃 已離開戰鬥");
   });
 }
 
 // 勝利後回到準備畫面
 function exitBattleAndGoToPrep() {
-  // 清理房間（如果是 PvP）
-  if (roomId) {
-    if (myRole === 'host') {
-      db.ref('rooms/' + roomId).remove();
-    } else if (myRole === 'guest') {
-      db.ref('rooms/' + roomId).update({
-        guest: null,
-        guest_ready: null,
-        guest_loadout: null,
-        status: 'waiting'
-      });
-    }
-  }
-  
-  // 重置所有狀態
-  roomId = null;
-  myRole = null;
-  isReady = false;
-  isInBattle = false;
-  loadout = [];
-  lobbyMode = 'pvp';
-  
-  // 回到準備戰鬥頁面
+  cleanupRoom();
   goTo('prepScreen');
   switchTab('tabBattle', '準備戰鬥');
 }
