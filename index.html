@@ -353,15 +353,7 @@ body{
   box-shadow: 0 4px 0 var(--gold-dk), 0 0 15px rgba(201, 148, 58, 0.2);
 }
 
-/* 裝備中的卡片 */
-.acc-card.equipped {
-  border-color: var(--gold) !important;
-  border-width: 3px !important;
-  background: linear-gradient(145deg, #4a3a28 0%, #3a2e20 100%) !important;
-  box-shadow: 0 4px 0 var(--gold), 0 0 25px rgba(201, 148, 58, 0.6) !important;
-  animation: equippedPulse 2s ease-in-out infinite alternate !important;
-  z-index: 5;
-}
+
 
 /* 未解鎖的卡片 */
 .acc-card.locked {
@@ -379,10 +371,6 @@ body{
   box-shadow: 0 6px 0 var(--gold-dk), 0 10px 20px rgba(0,0,0,0.5);
 }
 
-.acc-card.equipped:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 0 var(--gold), 0 10px 30px rgba(201, 148, 58, 0.7) !important;
-}
 
 .acc-card.maxed {
   opacity: .4;
@@ -399,13 +387,6 @@ body{
   100% { box-shadow: 0 0 20px rgba(201, 148, 58, 0.5); transform: scale(1.02); }
 }
 
-.acc-card.equipped {
-  border-color: var(--gold) !important;
-  background: linear-gradient(150deg, #2a2010 0%, #1e1a0e 100%) !important;
-  /* ⚡ 關鍵：這行讓它動起來 */
-  animation: equippedPulse 2s ease-in-out infinite alternate !important;
-  z-index: 5;
-}
 .acc-card.maxed{opacity:.4;cursor:not-allowed}
 .acc-card.maxed:hover{transform:none;box-shadow:none}
 /* 🌚 修正未擁有配件樣式：不要過度變暗 */
@@ -454,11 +435,9 @@ body{
   border:1.5px solid var(--leather-lt);display:flex;align-items:center;justify-content:center;
   font-size:1.5rem;transition:border-color .2s,box-shadow .2s;
 }
-.acc-card.equipped .acc-icon-wrap{border-color:var(--gold);box-shadow:0 0 12px rgba(201,148,58,.5)}
 .acc-icon-wrap .equipped-ring{
   position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold-lt);opacity:0;animation:none;
 }
-.acc-card.equipped .equipped-ring{opacity:.6;animation:ringPulse 2s ease-in-out infinite}
 @keyframes ringPulse{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.15);opacity:0}}
 .acc-meta{flex:1;min-width:0}
 .acc-name {
@@ -490,7 +469,7 @@ body{
   position:absolute;top:.4rem;right:.45rem;font-size:.7rem;color:var(--gold-lt);
   opacity:0;transition:opacity .2s;text-shadow:0 0 6px var(--gold);
 }
-.acc-card.equipped .equipped-tick{opacity:1}
+
 
 .prep-footer{
   position:fixed;bottom:0;left:0;right:0;z-index:20;padding:.7rem 1rem;
@@ -1100,6 +1079,39 @@ body{
     }
   }
 
+
+/* ⚡ 裝備中卡片：呼吸燈與懸浮對接版本 */
+.acc-card.equipped {
+  border-color: var(--gold) !important;
+  border-width: 3px !important;
+  background: linear-gradient(145deg, #4a3a28 0%, #3a2e20 100%) !important;
+  box-shadow: 0 4px 0 var(--gold), 0 0 25px rgba(201, 148, 58, 0.6) !important;
+  animation: equippedGlow 2s ease-in-out infinite alternate !important;
+  z-index: 5;
+  transition: transform 0.2s ease;
+}
+
+.acc-card.equipped:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 0 8px 0 var(--gold-dk), 0 15px 35px rgba(201, 148, 58, 0.8) !important;
+}
+
+@keyframes equippedGlow {
+  0% { box-shadow: 0 4px 0 var(--gold), 0 0 10px rgba(201, 148, 58, 0.4); }
+  100% { box-shadow: 0 4px 0 var(--gold), 0 0 25px rgba(201, 148, 58, 0.7); }
+}
+
+/* 裝備中圖示與勾勾 */
+.acc-card.equipped .acc-icon-wrap {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(201,148,58,0.5);
+}
+.acc-card.equipped .equipped-tick {
+  opacity: 1 !important;
+}
+
+
+
 </style>
 </head>
 <body>
@@ -1459,7 +1471,6 @@ body{
   border-bottom: 1px solid rgba(201,148,58,0.2);
 ">
   <span>⚔️ 我的配件</span>
-  <span style="color: var(--parch-dim); font-size: 0.5rem;"> v.s. </span>
   <span>對手配件 👾</span>
 </div>
   <div class="acc-arena">
@@ -3230,6 +3241,7 @@ function renderLibrary() {
     const body = document.getElementById('prepBody');
     if (!body) return;
     
+
     // 1. 清空並初始化容器（過濾器還在！）
     body.innerHTML = '<div id="invFilter"></div>'; 
     createFilterUI('invFilter', renderLibrary); 
@@ -4527,7 +4539,7 @@ if (gs.statTurn >= 3) {
   const reasons = {
     flip: `行動卡翻轉達到 ${gs.flipCount} 次！`,
     dummy: `成功擊敗了對手！`,
-    lose: '你的血量歸零了，在迷霧中倒下...',
+    lose: '對手觸發了🔄 無限翻轉的效果，直接獲勝!',
   };
 
   document.getElementById('vic_ico').textContent = icons[reason] || '🎓';
