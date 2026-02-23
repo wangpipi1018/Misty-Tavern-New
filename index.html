@@ -1063,14 +1063,12 @@ body{
 
 <div class="bg-canvas"></div>
 <div class="vignette"></div>
-
 <!-- 酒館大門 -->
- 
 <div class="screen" id="tavernDoorScreen">
   <!-- 身分牌區域（最上面） -->
   <div style="text-align:center; width:100%; margin-bottom: 1rem;">
-    <div id="authArea">
-      <button class="btn-enter" onclick="loginToTavern()" style="width: 220px;">📜 推開酒館大門</button>
+    <div id="authArea" style="display: none;">
+      <!-- 原本的登入按鈕會被隱藏，但保留結構 -->
     </div>
 
     <div id="accountInfoArea" style="margin-top:20px;">
@@ -1094,13 +1092,30 @@ body{
     <div class="sign-tagline">擲骰、裝備配件<br>迷霧酒館最流行的桌遊</div>
   </div>
 
-  <!-- 按鈕區域（最下面） -->
-<div style="text-align:center; margin-top: 1.5rem; width:100%; display: flex; flex-direction: column; align-items: center; gap: 10px;">
-  <!-- 進入酒館按鈕（新加回來） -->
-  <button class="btn-enter" onclick="goTo('prepScreen')" style="width: 220px; background: linear-gradient(135deg, var(--jade) 0%, var(--jade-lt) 100%); color:white;">
-    進入酒館 🏰
-  </button>
-    <button class="btn-back" onclick="showRules()" style="width: 220px; border-color:var(--gold-dk); color:var(--gold-lt); font-size: 0.7rem;">📜 查看桌遊規則</button>
+  <!-- 按鈕區域（會根據登入狀態切換） -->
+  <div id="tavernButtons" style="text-align:center; margin-top: 1.5rem; width:100%; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+    <!-- 未登入時顯示的按鈕 -->
+    <div id="loginButtons">
+      <!-- 訪客登入（匿名） -->
+      <button class="btn-enter" onclick="loginAsGuest()" style="width: 220px; background: linear-gradient(135deg, var(--leather) 0%, var(--leather-lt) 100%); display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">🍺</span> 訪客登入
+      </button>
+      
+      <!-- 冒險者登入（未來可擴充） -->
+      <button class="btn-enter" onclick="loginAsAdventurer()" style="width: 220px; background: linear-gradient(135deg, var(--jade) 0%, var(--jade-lt) 100%); display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">⚔️</span> 冒險者登入
+      </button>
+    </div>
+
+    <!-- 登入後顯示的按鈕（預設隱藏） -->
+    <div id="afterLoginButtons" style="display: none;">
+      <button class="btn-enter" onclick="continueJourney()" style="width: 220px; background: linear-gradient(135deg, var(--gold-dk) 0%, var(--gold) 100%); display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">🗺️</span> 推開酒館大門
+      </button>
+    </div>
+
+    <!-- 查看規則（保持原樣，永遠顯示） -->
+    <button class="btn-back" onclick="showRules()" style="width: 220px; border-color:var(--gold-dk); color:var(--gold-lt); font-size: 0.7rem; margin-top: 10px;">📜 查看桌遊規則</button>
   </div>
 </div>
 
@@ -1428,11 +1443,9 @@ body{
     <div class="vic-sub" id="vic_sub">成果總結</div>
     <div class="vic-reason" id="vic_reason"></div>
     <div class="vic-stats" id="vic_stats"></div>
-    <button class="btn-enter" onclick="goTo('prepScreen')">再練一局</button>
-<button class="btn-back" style="display:block;width:180px;margin:.5rem auto" onclick="goTo('tavernDoorScreen')">返回酒館大門</button>
+   <button class="btn-enter" onclick="exitBattleAndGoToPrep()">再練一局</button>
+<button class="btn-back" style="display:block;width:180px;margin:.5rem auto" onclick="goTo('prepScreen')">返回準備戰鬥</button>
 
-<button class="btn-enter" onclick="prepareNewGame()">再練一局</button>
-<button class="btn-back" style="display:block;width:180px;margin:.5rem auto" onclick="quitBattle()">返回酒館</button>
   </div>
 </div>
 
@@ -1625,6 +1638,7 @@ const ROOM_TIMEOUT = 30000;
 let matchingTimer = null;        // 配對計時器
 let isMatching = false;          // 是否正在配對中
 let lobbyMode = 'pvp'; // 'pve' 或 'pvp'
+let isInBattle = false;
 
 // 🏆 玩家存檔數據
 let playerAccount = {
@@ -1641,33 +1655,101 @@ function loginToTavern() {
     // alert("大門鎖住了：" + err.message);
     showTavernMsg(`🔒 大門鎖住了：${err.message}`);
   });
+ }
+ 
+ // 訪客登入（匿名）
+function loginAsGuest() {
+  loginToTavern();  // 直接使用原本的匿名登入
 }
 
+// 冒險者登入（未來可擴充為 email/密碼）
+function loginAsAdventurer() {
+  showTavernMsg("🛠️ 冒險者登入開發中，請先用訪客登入", 3000);
+  // 未來可以加入：
+  // auth.signInWithEmailAndPassword(email, password)
+}
+
+// 繼續旅程（如果已登入）
+function continueJourney() {
+  if (myUID) {
+    goTo('prepScreen');
+  } else {
+    showTavernMsg("🔑 請先登入再繼續旅程", 3000);
+  }
+}
 
 auth.onAuthStateChanged((user) => {
   const authArea = document.getElementById('authArea');
-  const accountInfoArea = document.getElementById('accountInfoArea'); // 確保抓到這個區域
+  const accountInfoArea = document.getElementById('accountInfoArea');
+  const loginButtons = document.getElementById('loginButtons');
+  const afterLoginButtons = document.getElementById('afterLoginButtons');
 
   if (user) {
     myUID = user.uid;
     window.myPlayerId = myUID;
     
-    // 1. 隱藏登入按鈕
-    if(authArea) authArea.style.display = 'none'; 
+    // 隱藏登入按鈕，顯示「推開酒館大門」
+    if(loginButtons) loginButtons.style.display = 'none';
+    if(afterLoginButtons) afterLoginButtons.style.display = 'block';
     
-    // 2. 顯示帳號資訊與改名區
+    // 顯示帳號資訊
     if(accountInfoArea) accountInfoArea.style.display = 'block'; 
 
-    // 3. 載入資料
+    // 載入資料
     loadUserAccount(myUID);
     
+    // ===== 單一登入監聽系統 =====
+    const connectionRef = db.ref('.info/connected');
+    const lastConnectionRef = db.ref(`users/${myUID}/lastConnection`);
     
+    connectionRef.on('value', (snap) => {
+      if (snap.val() === true) {
+        lastConnectionRef.once('value').then((lastConn) => {
+          const lastConnectionId = lastConn.val();
+          const currentConnectionId = Math.random().toString(36).substring(7);
+          
+          if (lastConnectionId && lastConnectionId !== currentConnectionId) {
+            console.log("👋 偵測到其他登入，將被踢出");
+            showTavernMsg("👋 您的帳號在其他地方登入了", 5000);
+            
+            db.ref('rooms').once('value', (snap) => {
+              const rooms = snap.val();
+              if (rooms) {
+                for (const [roomId, roomData] of Object.entries(rooms)) {
+                  if (roomData.host === myUID) {
+                    db.ref(`rooms/${roomId}`).remove();
+                  } else if (roomData.guest === myUID) {
+                    db.ref(`rooms/${roomId}`).update({
+                      guest: null,
+                      guest_ready: null,
+                      guest_loadout: null
+                    });
+                  }
+                }
+              }
+            });
+            
+            auth.signOut();
+            goTo('tavernDoorScreen');
+            
+          } else {
+            lastConnectionRef.set(currentConnectionId);
+            lastConnectionRef.onDisconnect().remove();
+            console.log("✅ 已記錄本次連線，我是最新的");
+          }
+        });
+      }
+    });
+
   } else {
-    // 未登入時，確保按鈕是顯示的
-    if(authArea) authArea.style.display = 'block';
+    // 未登入時，顯示登入按鈕
+    if(loginButtons) loginButtons.style.display = 'block';
+    if(afterLoginButtons) afterLoginButtons.style.display = 'none';
     if(accountInfoArea) accountInfoArea.style.display = 'none';
+    if(authArea) authArea.style.display = 'block';
   }
-});
+});  // ← 這裡只有一個結束括號！
+
 // ⚡ [新增] 載入雲端存檔的邏輯
 function loadUserAccount(uid) {
   db.ref('users/' + uid).once('value').then((snapshot) => {
@@ -1791,7 +1873,10 @@ function setupPresence(roomId, role) {
   reconnectTimer = setInterval(() => {
     if (roomId && myUID) {
       db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
-      db.ref(`users/${myUID}/currentRoom/lastSeen`).set(Date.now());
+      // 加上安全檢查
+      if (myUID) {
+        db.ref(`users/${myUID}/currentRoom/lastSeen`).set(Date.now());
+      }
     }
   }, 15000);
 }
@@ -2256,23 +2341,35 @@ const ACCESSORIES = [
     }
   },
   
- {
-    id: 'tentacle',
-    name: '觸手',
-    icon: '🐙',
-    rarity: 2,
-    type: 'passive',
-    req: '每擲出⚀',
-    desc: '回合開始時擲骰，每擲出一顆點數 1 的骰子，行動卡自動 +3 點。',
-    on: {
-      playerDieRolled: (gs, actor, val) => {
-        if(val === 1) {
-          FX.addPts(gs, actor, 3);
-          const label = (actor === 'player') ? '👤 你' : '🤖 對手';
-          const logColor = (actor === 'player') ? 'good' : 'bad';
-          log(`🐙 ${label} 的觸手感應到點數 1，行動卡 +3 點！`, logColor);
+{
+  id: 'tentacle',
+  name: '觸手',
+  icon: '🐙',
+  rarity: 2,
+  type: 'passive',
+  req: '每擲出⚀',
+  desc: '回合開始時擲骰，每擲出一顆點數 1 的骰子，行動卡自動 +3 點。',
+  on: {
+     playerDieRolled: function(gs, val, source, actor) {
+      console.log(`🐙 觸手被呼叫！ actor: ${actor}, val: ${val}`);
+      if(val === 1) {
+        console.log(`🎯 偵測到點數 1，開始加點！`);
+        if(actor === 'player') {
+          gs.pts += 3;
+          console.log(`👤 玩家加點後: ${gs.pts}`);
+          floatAt(`+3`, document.getElementById('myCard'), 'pts');
+        } else {
+          gs.enemyPts += 3;
+          console.log(`🤖 對手加點後: ${gs.enemyPts}`);
+          const enemyCardWrap = document.querySelector('.card-wrap:last-child .action-card');
+          if(enemyCardWrap) floatAt(`+3`, enemyCardWrap, 'pts');
         }
+        const label = (actor === 'player') ? '👤 你' : '🤖 對手';
+        const logColor = (actor === 'player') ? 'good' : 'bad';
+        log(`🐙 ${label} 的觸手感應到點數 1，行動卡 +3 點！`, logColor);
+        renderCard();
       }
+    }
     }
   },
 
@@ -2533,11 +2630,11 @@ let gs = {};
 function triggerEvent(event, actor = 'player', ...args) {
   // actor 代表現在是誰在擲骰或受傷 (player 或 enemy)
   const currentLoadout = (actor === 'player') ? gs.loadout : gs.enemyLoadout;
-  
+    console.log(`🎯 觸發事件: ${event}, 角色: ${actor}, 配件:`, currentLoadout);  // ← 加入這行
   currentLoadout.forEach(id => {
     const acc = ACCESSORIES.find(a => a.id === id);
     if(!acc || !acc.on || !acc.on[event]) return;
-    
+      console.log(`✅ 找到配件 ${acc.name} 有事件 ${event}`);  // ← 加入這行
     // ⚡ 確保參數順序正確：gs, 事件相關參數, actor
     acc.on[event](gs, ...args, actor); 
   });
@@ -2645,18 +2742,19 @@ function useAccessory(acc, dice, dropIdx, who = 'player') {
   stored.push(die.v); 
 
   if (stored.length === totalNeeded) {
-  log(`${ownerLabel} 施展了 ${acc.icon} ${acc.name} 的力量！`, logColor); 
-  
-  // 只有 perTurnAccs 裡的配件才加入冷卻
-  if (perTurnAccs.includes(acc.id)) {
-    if (coolDownList) coolDownList.push(acc.id);
+    log(`${ownerLabel} 施展了 ${acc.icon} ${acc.name} 的力量！`, logColor); 
+    
+    // 只有 perTurnAccs 裡的配件才加入冷卻
+    if (perTurnAccs.includes(acc.id)) {
+      const currentCoolDownList = (who === 'player') ? gs.usedAccs : gs.enemyUsedAccs;
+      if (currentCoolDownList) currentCoolDownList.push(acc.id);
+    }
+    
+    if (acc.effect) acc.effect(gs, who, dropIdx, dice);
+    ledger[acc.id] = []; 
+  } else {
+    if(who === 'player') log(`📥 ${ownerLabel} 注入能量 ${FACES[die.v-1]} (${stored.length}/${totalNeeded})`, 'system');
   }
-  
-  if (acc.effect) acc.effect(gs, who, dropIdx, dice);
-  ledger[acc.id] = []; 
-} else {
-  if(who === 'player') log(`📥 ${ownerLabel} 注入能量 ${FACES[die.v-1]} (${stored.length}/${totalNeeded})`, 'system');
-}
 }
 
 // 輔助函式也要同步更新
@@ -3023,12 +3121,20 @@ function gachaPull() {
 }
 
 // ⚡ 自訂提示函式 - 中文優化版（自動換行）
-function showTavernMsg(msg) {
+function showTavernMsg(msg, duration = 3000) {
   const container = document.getElementById('toast-container');
   if (!container) return;
   
   const el = document.createElement('div');
   el.className = 'toast-msg';
+  
+  // 如果是被踢出的訊息，用紅色背景
+  if (msg.includes("其他地方登入")) {
+    el.style.background = "linear-gradient(135deg, #8b1c1c 0%, #c0392b 100%)";
+    el.style.border = "2px solid #ff6b6b";
+    el.style.color = "#fff";
+    el.style.fontWeight = "bold";
+  }
   
   // 處理長訊息，自動加入換行（中文優化）
   let formattedMsg = msg;
@@ -3086,8 +3192,8 @@ function showTavernMsg(msg) {
   el.innerHTML = formattedMsg;
   container.appendChild(el);
   
-  // 3秒後自動移除
-  setTimeout(() => el.remove(), 3000);
+  // 使用傳入的 duration
+  setTimeout(() => el.remove(), duration);
 }
 
 // ⚡ 酒館風格的確認對話框
@@ -3340,6 +3446,21 @@ function startPvEBattle() {
   const aiPool = ACCESSORIES.filter(a => a.id !== 'medal').map(a => a.id);
   const enemyLoadout = aiPool.sort(() => 0.5 - Math.random()).slice(0, 3);
   
+  // ===== 🚨 為每個配件建立儲存陣列 =====
+  const playerStored = {};
+  const enemyStored = {};
+  
+  // 為你的每個配件建立空陣列
+  loadout.forEach(id => {
+    playerStored[id] = [];
+  });
+  
+  // 為對手的每個配件建立空陣列
+  enemyLoadout.forEach(id => {
+    enemyStored[id] = [];
+  });
+  // ====================================
+  
   // 初始化戰鬥狀態
   gs = {
     isSinglePlayer: true,
@@ -3362,8 +3483,8 @@ function startPvEBattle() {
     rolled: false,
     dice: [],
     enemyLoadout: enemyLoadout,
-    playerStored: {},
-    enemyStored: {},
+    playerStored: playerStored,  // ✅ 使用初始化好的物件
+    enemyStored: enemyStored,    // ✅ 使用初始化好的物件
     isAIThinking: false
   };
   
@@ -3379,34 +3500,6 @@ function startPvEBattle() {
     }).join(', ');
     log('🤖 對戰電腦！對手裝備：' + enemyNames, 'system');
   }, 100);
-}
-
-function quitBattle() {
-  showConfirmDialog("確定要離開並回到酒館嗎？", () => {
-    if (roomId) {
-      const roomRef = db.ref('rooms/' + roomId);
-      
-      if (myRole === 'host') {
-        roomRef.remove();
-      } else {
-        roomRef.child('guest').remove();
-        roomRef.child('guest_ready').remove();
-        roomRef.child('guest_loadout').remove();
-        roomRef.update({ status: 'waiting' });
-        roomRef.off();
-      }
-    }
-    
-    isInBattle = false;
-    roomId = null;
-    myRole = null;
-    isReady = false;
-    gameInstanceId++;
-    loadout = [];
-
-    goTo('tavernDoorScreen');
-    showTavernMsg("🏃 已離開戰鬥");
-  });
 }
 
 function renderBattle(){
@@ -4926,7 +5019,6 @@ function listenToBattleActions() {
     }, 50);
   });
 }
-
 // 離開房間（完整清理版）
 function quitRoom() {
   cancelMatching();
@@ -4982,6 +5074,66 @@ function quitRoom() {
     goTo('prepScreen');
     switchTab('tabBattle', '準備戰鬥');
   });
+}
+
+// 戰鬥中離開
+function quitBattle() {
+  showConfirmDialog("確定要離開戰鬥嗎？", () => {
+    // 清理房間（如果是 PvP）
+    if (roomId) {
+      if (myRole === 'host') {
+        db.ref('rooms/' + roomId).remove();
+      } else if (myRole === 'guest') {
+        db.ref('rooms/' + roomId).update({
+          guest: null,
+          guest_ready: null,
+          guest_loadout: null,
+          status: 'waiting'
+        });
+      }
+    }
+    
+    // 重置所有狀態
+    isInBattle = false;
+    roomId = null;
+    myRole = null;
+    isReady = false;
+    loadout = [];
+    lobbyMode = 'pvp';
+    
+    // 回到酒館大門
+    goTo('tavernDoorScreen');
+    showTavernMsg("🏃 已離開戰鬥");
+  });
+}
+
+// 勝利後回到準備畫面
+function exitBattleAndGoToPrep() {
+  // 清理房間（如果是 PvP）
+  if (roomId) {
+    if (myRole === 'host') {
+      db.ref('rooms/' + roomId).remove();
+    } else if (myRole === 'guest') {
+      db.ref('rooms/' + roomId).update({
+        guest: null,
+        guest_ready: null,
+        guest_loadout: null,
+        status: 'waiting'
+      });
+    }
+  }
+  
+  // 重置所有狀態
+  roomId = null;
+  myRole = null;
+  isReady = false;
+  isInBattle = false;
+  loadout = [];
+  lobbyMode = 'pvp';
+  
+  // 回到準備戰鬥頁面
+  goTo('prepScreen');
+  switchTab('tabBattle', '準備戰鬥');
 }
 
 // 3. 補上一個同步配件清單的工具 (給 Lobby 用)
