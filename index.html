@@ -1590,10 +1590,6 @@ const BattleCommander = {
 
    // 在 BattleCommander.useDieOnAcc 中
 useDieOnAcc: (act) => {
-    db.ref(`rooms/${roomId}/battle`).update({
-        playerStored: gs.playerStored,
-        enemyStored: gs.enemyStored
-    });
 
     const acc = ACCESSORIES.find(a => a.id === act.accId);
     if (acc && gs.dice && gs.dice[act.dieIdx]) {
@@ -1729,12 +1725,13 @@ let lobbyMode = 'pvp'; // 'pve' 或 'pvp'
 let isInBattle = false;
 
 // 🏆 玩家存檔數據
-let playerAccount = {
-  name: "",  // ⚡ 空字串
-  gold: 0,   // ⚡ 金幣 0
+playerAccount = {
+  name: "勇者" + Math.floor(Math.random()*1000),
+  gold: 0,
   level: 1,
-  warehouse: [],      // ⚡ 空倉庫
-  currentLoadout: [], // ⚡ 無裝備
+  warehouse: [],
+  unlockedAccessories: [], // ✨ 必加！防止新玩家崩潰
+  currentLoadout: [],
   shards: 0
 };
 
@@ -1786,35 +1783,38 @@ auth.onAuthStateChanged((user) => {
     // 載入資料
     loadUserAccount(myUID);
     
-    // ===== 單一登入監聽系統 =====
-    const connectionRef = db.ref('.info/connected');
-    const lastConnectionRef = db.ref(`users/${myUID}/lastConnection`);
-    
-  connectionRef.on('value', (snap) => {
-      if (snap.val() === true) {
-        const currentConnectionId = Math.random().toString(36).substring(7);
+ // ===== 單一登入監聽系統 - 穩定增強版 =====
+const connectionRef = db.ref('.info/connected');
+const lastConnectionRef = db.ref(`users/${myUID}/lastConnection`);
 
-        // 先寫入自己的 ID
+// 生成一個本次分頁唯一的 Session ID
+const currentConnectionId = Math.random().toString(36).substring(7) + Date.now();
+
+connectionRef.on('value', (snap) => {
+    if (snap.val() === true) {
+        // 1. 宣示主權：寫入本次分頁的 ID
         lastConnectionRef.set(currentConnectionId);
         lastConnectionRef.onDisconnect().remove();
 
-        // 等 2 秒後讀回來，看是否被其他裝置覆蓋
+        // 2. 緩衝檢查：給予足夠的時間讓雲端同步
         setTimeout(() => {
-          lastConnectionRef.once('value').then((snap) => {
-            if (snap.val() !== currentConnectionId) {
-              // 被覆蓋了，代表有第二個裝置登入
-console.log("👋 偵測到其他登入，將被踢出");
-              showTavernMsg("👋 您的帳號在其他地方登入了", 5000);
-              globalOff();   // ← 新增：清除所有監聽器再登出
-              auth.signOut();
-              goTo('tavernDoorScreen');
-            } else {
-              console.log("✅ 已記錄本次連線，我是最新的");
-            }
-          });
-        }, 2000);
-      }
-    });
+            lastConnectionRef.get().then((snapshot) => {
+                const cloudId = snapshot.val();
+                
+                // 3. 只有在「雲端有 ID」且「ID 真的跟我不一樣」時才踢人
+                if (cloudId && cloudId !== currentConnectionId) {
+                    console.log("👋 偵測到其他裝置登入，雲端 ID:", cloudId, "本地 ID:", currentConnectionId);
+                    showTavernMsg("👋 您的帳號在其他地方登入了", 5000);
+                    globalOff();
+                    auth.signOut();
+                    goTo('tavernDoorScreen');
+                } else {
+                    console.log("✅ 設備驗證成功，當前連線為唯一合法連線");
+                }
+            });
+        }, 6000); // 稍微增加到 6 秒，確保極端網路下也穩定
+    }
+});
 
   } else {
     // 未登入時，顯示登入按鈕
@@ -1825,93 +1825,56 @@ console.log("👋 偵測到其他登入，將被踢出");
   }
 });  // ← 這裡只有一個結束括號！
 
-// ⚡ [新增] 載入雲端存檔的邏輯
 function loadUserAccount(uid) {
+  // 1. 定義「絕對安全」的預設結構
+  const defaultAccount = {
+    name: "勇者" + Math.floor(Math.random()*1000),
+    gold: 0,
+    level: 1,
+    warehouse: [],
+    unlockedAccessories: [], 
+    currentLoadout: [],
+    shards: 0
+  };
+
   db.ref('users/' + uid).once('value').then((snapshot) => {
     const cloudData = snapshot.val();
-    if (cloudData) {
-      playerAccount = cloudData;
-      console.log("✅ 已恢復雲端存檔");
+    
+    // 🔍 判斷：如果有存檔且存檔裡至少有名字，才算是有意義的存檔
+    if (cloudData && cloudData.name) {
+      // 🟢 舊玩家：將雲端資料與預設結構合併（確保新欄位 unlockedAccessories 存在）
+      playerAccount = { ...defaultAccount, ...cloudData };
+      console.log("✅ 成功對齊雲端資料:", playerAccount.name);
     } else {
-      // 沒存檔的新玩家，給他初始數值（空倉庫、無裝備）
-      playerAccount = {
-        name: "勇者" + Math.floor(Math.random()*1000),
-        gold: 0,
-        level: 1,
-        warehouse: [],  // ⚡ 改為空陣列，沒有任何配件
-        currentLoadout: [],  // ⚡ 改為空陣列，沒有裝備
-        shards: 0
-      };
+      // 🆕 新玩家（或已被刪除的帳號）：直接套用全新預設結構
+      playerAccount = { ...defaultAccount };
+      console.log("🆕 偵測到無效或不存在的帳號，重新初始化中...");
       
-      // ✨ 新玩家贈送五連抽（不重複）
-      showTavernMsg("🎁 新冒險者！正在進行五連抽...");
-      
-      // 確保不重複的抽獎
+      // 立即執行存檔與五連抽
+      saveAccountToCloud();
+      showTavernMsg(`🎁 歡迎 ${playerAccount.name}！正在準備初始配件...`);
       performFiveUniqueGacha();
     }
-    syncAccountUI();
-    renderLibrary();
-    if(document.getElementById('uidDisplay')) {
-      document.getElementById('uidDisplay').textContent = "身分牌: " + playerAccount.name;
+
+    // 🚀 【核心】不管新舊帳號，讀完後必須立刻觸發這三件事
+    syncAccountUI(); // 更新金幣、倉庫數量
+    renderLibrary(); // 更新圖鑑（防止 includes of undefined）
+    
+    // 強制刷掉身分牌的 undefined
+    const uidDisplay = document.getElementById('uidDisplay');
+    if(uidDisplay) {
+        uidDisplay.textContent = "身分牌: " + playerAccount.name;
     }
-
-    // 清理超過 5 分鐘的廢棄房間
-    db.ref('rooms').once('value').then(snap => {
-      const rooms = snap.val();
-      if (!rooms) return;
-      const now = Date.now();
-      Object.entries(rooms).forEach(([id, room]) => {
-        const isAbandoned = room.status === 'abandoned';
-        const isStale = room.timestamp && (now - room.timestamp > 5 * 60 * 1000);
-        if (isAbandoned || isStale) {
-          db.ref(`rooms/${id}`).remove();
-        }
-      });
-    });
-
-    // 檢查是否有未完成的對戰
-    db.ref(`users/${uid}/currentRoom`).once('value').then(curSnap => {
-      const cur = curSnap.val();
-      if (!cur || !cur.roomId) return;
-
-      db.ref(`rooms/${cur.roomId}`).once('value').then(roomSnap => {
-        const roomData = roomSnap.val();
-      if (!roomData) {
-          if (cur.wasInBattle) {
-            showTavernMsg('⚠️ 上場對戰因連線異常而中止', 5000);
-          }
-          db.ref(`users/${uid}/currentRoom`).remove();
-          return;
-        }
-
-        const isMyRoom = roomData.host === uid || roomData.guest === uid;
-        const isInBattleState = !!(roomData.battle && roomData.battle.currentTurnPlayer);
-        const opponentStillHere = !!(roomData.host && roomData.guest);
-
-      if (isMyRoom && isInBattleState && opponentStillHere) {
-          const role = roomData.host === uid ? 'host' : 'guest';
-          showConfirmDialog('你有一場未完成的對戰，是否重新連線？', () => {
-            resumeBattle(cur.roomId, role, roomData);
-          });
-        } else if (isMyRoom && isInBattleState && !opponentStillHere) {
-          // 曾在戰鬥中，但對手已離開
-          showTavernMsg('⚠️ 上場對戰因對手斷線而中止', 5000);
-          db.ref(`users/${uid}/currentRoom`).remove();
-        }
-      });
-    });
-
+console.log("🧹 帳號載入流程完成");
   });
 }
-
-// ✨ 新增：五連抽（保證不重複）
+// ✨ [優化版] 五連抽邏輯
 function performFiveUniqueGacha() {
-  // 複製一份配件清單（避免重複）
   let availableAccs = [...ACCESSORIES];
   let drawnCount = 0;
   
   const drawTimer = setInterval(() => {
-    if (availableAccs.length === 0 || drawnCount >= 5) {
+    if (drawnCount >= 5 || availableAccs.length === 0) {
       clearInterval(drawTimer);
       showTavernMsg("🎉 五連抽完成！祝你冒險順利！");
       saveAccountToCloud();
@@ -1920,21 +1883,20 @@ function performFiveUniqueGacha() {
       return;
     }
     
-    // 隨機抽一個
     const randomIndex = Math.floor(Math.random() * availableAccs.length);
     const wonAcc = availableAccs[randomIndex];
-    
-    // 從可用清單中移除（確保不重複）
     availableAccs.splice(randomIndex, 1);
     
-    // 加入倉庫
+    // 同時存入新舊欄位
+    if (!playerAccount.warehouse) playerAccount.warehouse = [];
+    if (!playerAccount.unlockedAccessories) playerAccount.unlockedAccessories = [];
+    
     playerAccount.warehouse.push(wonAcc.id);
+    playerAccount.unlockedAccessories.push(wonAcc.id);
+    
     drawnCount++;
-    
-    // 顯示結果
     showTavernMsg(`✨ 第 ${drawnCount} 抽：獲得 ${wonAcc.name}！`);
-    
-  }, 600); // 0.6 秒顯示一次
+  }, 600);
 }
 
 // ⚡ [新增] 將目前的 playerAccount 狀態儲存到雲端
@@ -2008,7 +1970,7 @@ let currentFilter = {
   sort: 'low'    // 預設為 'low' (低到高), 也可以是 'high' (高到低)
 };
 
-// 🔄 更新玩家介面顯示
+// 🔄 更新玩家介面顯示 - 強化防禦版
 function syncAccountUI() {
   const goldEl = document.getElementById('displayGold');
   const levelEl = document.getElementById('displayLevel');
@@ -2016,10 +1978,14 @@ function syncAccountUI() {
   const nameEl = document.getElementById('displayName'); 
   const shardEl = document.getElementById('shardCount');
   
-  if(goldEl) goldEl.textContent = playerAccount.gold;
-  if(levelEl) levelEl.textContent = playerAccount.level;
-  if(countEl) countEl.textContent = playerAccount.warehouse.length;
-  if(nameEl) nameEl.textContent = playerAccount.name; 
+  // 使用 || 確保即使資料還沒載入，也不會顯示空值或 undefined
+  if(goldEl) goldEl.textContent = playerAccount.gold ?? 0;
+  if(levelEl) levelEl.textContent = playerAccount.level ?? 1;
+  if(countEl) countEl.textContent = (playerAccount.warehouse || []).length;
+  
+  // 🔥 關鍵：給名字一個預設值
+  if(nameEl) nameEl.textContent = playerAccount.name || "新冒險者"; 
+  
   if(shardEl) shardEl.textContent = playerAccount.shards || 0; 
 }
 
@@ -2156,26 +2122,49 @@ const FX = {
     log(`${who==='player'?'✨':'🤖'} 行動卡直接填滿！`, who==='player'?'good':'bad');
   },
 
- splitDie: (gs, targetDice, idx, who) => {
-    const die = targetDice[idx];
-    if (!die) return;
+splitDie: (gs, targetDice, idx, who) => {
+    // 🛡️ 第一層：確保 targetDice 存在，若不存在則嘗試回退到 gs.dice
+    const dicePool = targetDice || (gs ? gs.dice : null);
+    if (!dicePool) {
+        console.warn("⚠️ splitDie: 找不到骰子池");
+        return;
+    }
+
+   // 🛡️ 第二層：確保該索引的骰子真的存在
+    const die = dicePool[idx];
+    if (!die || typeof die.v === 'undefined') {
+        // ⚡ 改成這樣，不要報錯，直接默默退出
+        console.warn(`⚠️ splitDie 同步中...`);
+        return;
+    }
     
-    const half = die.v / 2;
+    const half = Math.floor(die.v / 2); // 確保是整數
+    if (half < 1) return; // 點數 1 不能再分裂
+
     const label = (who === 'player') ? '👤 你' : '🤖 對手';
-    log(`${label} 將 ${FACES[die.v-1]} 分裂為兩個 ${FACES[half-1]}！`, 'spec');
+    
+    // 🛡️ 第三層：安全讀取 FACES，防止 faceIndex 為負數
+    const faceIndex = Math.max(0, die.v - 1);
+    const halfIndex = Math.max(0, half - 1);
+    
+    log(`${label} 將 ${FACES[faceIndex]} 分裂為兩個 ${FACES[halfIndex]}！`, 'spec');
 
-    // 🛡️ 安全的分裂方法：先標記原本的已使用，再補兩顆新的
+    // 執行分裂邏輯
     die.u = true; 
-    targetDice.push({ v: half, u: false, rolling: true }, { v: half, u: false, rolling: true });
+    dicePool.push(
+        { v: half, u: false, rolling: true }, 
+        { v: half, u: false, rolling: true }
+    );
 
-// 550ms 後移除動畫標記（與 CSS 動畫一致）
-setTimeout(() => {
-  if (gs && gs.dice) {
-    gs.dice.forEach(d => d.rolling = false);
-    renderBattle();
-  }
-}, 550);
-  },
+    // 550ms 後移除動畫標記
+    setTimeout(() => {
+        // 這裡同樣要確保 gs.dice 存在，避免異步回調時對象已被銷毀
+        if (gs && gs.dice) {
+            gs.dice.forEach(d => { if(d) d.rolling = false; });
+            renderBattle();
+        }
+    }, 550);
+},
   
 damage: (gs, target, n, label = "攻擊") => {
   // 1. 強制執行本地扣血：不管是誰的回合，只要這行跑了，螢幕上的血就要扣
@@ -2370,6 +2359,8 @@ const ACCESSORIES = [
     
     effect: (gs, who) => {
       FX.addDice(gs, who, 2);
+      // ⚡ 必加同步
+  if (who === 'player' && isOnlineMode()) syncBattle({ bonusDice: gs.bonusDice });
     }
   },
 
@@ -2389,51 +2380,30 @@ const ACCESSORIES = [
       check: (gs) => !gs.usedAccs?.includes('clock')
     },
    effect: (gs, who, dropIdx) => {
-    const targetDie = gs.dice[dropIdx];
-    if (!targetDie) return;
-    
-    const oldVal = targetDie.v;
-    const newVal = rand(1, 6);
-    
-    // ✨ 加入滾動動畫
-    targetDie.rolling = true;
-    targetDie.v = newVal;
-    targetDie.u = false;
-    
-    // 重新渲染讓自己看到動畫
-    renderBattle();
+        const targetDie = gs.dice[dropIdx];
+        if (!targetDie) return;
+        
+        const oldVal = targetDie.v;
+        const newVal = rand(1, 6);
+        
+        // ✨ 本地邏輯保持不變
+        targetDie.rolling = true;
+        targetDie.v = newVal;
+        targetDie.u = false;
+        
+        renderBattle();
 
-    if (who === 'player') {
-        // 判斷是否為連線模式
-       
-        
-       syncBattle({ lastDice: gs.dice, diceActionId: Math.random() }).then(() => {
-    syncBattleAction({
-        type: 'useDieOnAcc',
-        actor: myRole,
-        accId: 'clock',
-        dieIdx: dropIdx,
-        val: newVal,
-        source: 'reroll'
-    });
-});
-
-        // 本地冷卻處理
-        if(!gs.usedAccs) gs.usedAccs = [];
-        gs.usedAccs.push('clock');
-        
-        // 顯示訊息
-        log(`⏰ 鬧鐘響起！你將 ${FACES[oldVal-1]} 重擲為 ${FACES[newVal-1]}`, 'good');
-        
-        // 設定計時器，移除滾動動畫
-        setTimeout(() => {
-            if (gs && gs.dice && gs.dice[dropIdx]) {
-                gs.dice[dropIdx].rolling = false;
-                renderBattle();
-            }
-        }, 550); // 與 CSS 動畫時間一致
-    }
- } },
+        // 🛡️ 這裡開始進化：改用中控發射器
+        if (who === 'player' && isOnlineMode()) {
+            // 一行解決！不需要再寫 .then() 或管 Firebase 路徑
+            syncOnlineAction('useDieOnAcc', {
+                accId: 'clock',
+                dieIdx: dropIdx,
+                val: newVal,
+                source: 'reroll'
+            });
+        }
+    }},
   
 {
     id: 'splitter', 
@@ -2450,34 +2420,47 @@ const ACCESSORIES = [
       // 核心限制：必須是偶數且這回合沒用過
       check: (gs) => !gs.usedAccs?.includes('splitter')
     },
-    effect: (gs, who, dropIdx, aiDice) => {
-      // 🛡️ 關鍵修正：判斷現在是誰在分裂，傳入正確的骰子堆
+  effect: (gs, who, dropIdx, aiDice) => {
       if (who === 'player') {
+        // 1. 執行本地分裂邏輯
         FX.splitDie(gs, gs.dice, dropIdx, 'player');
+
+        // ⚡ 核心修正：同步分裂後的骰子堆給對手
+        if (typeof isOnlineMode === 'function' && isOnlineMode()) {
+            syncBattle({ 
+                lastDice: gs.dice, // 傳送包含新骰子的陣列
+                diceActionId: Math.random() // 確保觸發對手的監聽器更新畫面
+            });
+        }
       } else {
-        // aiDice 是我們從 doEnemyTurn 傳進來的臨時骰子堆
+        // AI 或是對手透過 BattleCommander 呼叫時
         FX.splitDie(gs, aiDice, dropIdx, 'enemy');
       }
     }
   },
 
-  {
-    id: 'shoes',
-    name: '疾走鞋',
-    icon: '👟',
-    rarity: 1,
-    type: 'passive',
-    req: '每回合擲骰前',
-    desc: '每回合開始時，行動卡自動 +1 點。',
-    on: {
-      playerTurnStart: (gs, actor) => {
-        FX.addPts(gs, actor, 1);
-        const label = (actor === 'player') ? '👤 你' : '🤖 對手';
-        const logColor = (actor === 'player') ? 'good' : 'bad';
-        log(`👟 ${label} 的疾走鞋：行動卡 +1`, logColor);
+ {
+  id: 'shoes',
+  name: '疾走鞋',
+  icon: '👟',
+  rarity: 1,
+  type: 'passive',
+  req: '每回合擲骰前',
+  desc: '每回合開始時，行動卡自動 +1 點。',
+  on: {
+    playerTurnStart: (gs, actor) => {
+      FX.addPts(gs, actor, 1);
+      const label = (actor === 'player') ? '👤 你' : '🤖 對手';
+      const logColor = (actor === 'player') ? 'good' : 'bad';
+      log(`👟 ${label} 的疾走鞋：行動卡 +1`, logColor);
+      
+      // ⚡ 核心修正：如果是我的回合，同步最新的行動卡點數給對手
+      if (actor === 'player' && typeof isOnlineMode === 'function' && isOnlineMode()) {
+        syncBattle({ pts: gs.pts });
       }
-    }
-  },
+    } // 👈 結束 playerTurnStart 函式
+  }   // 👈 結束 on 物件 (你剛才漏掉這一個)
+},
   
 {
   id: 'tentacle',
@@ -2493,6 +2476,8 @@ const ACCESSORIES = [
         if(actor === 'player') {
           gs.pts = (gs.pts || 0) + 3;
           floatAt(`+3`, document.getElementById('myCard'), 'pts');
+          // ⚡ 必加同步
+  if (isOnlineMode()) syncBattle({ pts: gs.pts });
         } else {
           gs.enemyPts += 3;
           const enemyCardWrap = document.querySelector('.card-wrap:last-child .action-card');
@@ -2516,19 +2501,21 @@ const ACCESSORIES = [
     req: '行動卡翻轉累計 10 次',
     desc: '當你的行動卡翻轉次數達到 10 次時，直接獲得勝利！',
     
-    on: {
-        // ⚡ 加上 flipCount 參數，但也可以不用，直接從 gs 讀
-        playerFlip: (gs, actor, flipCount) => {
-            // 方法1：用傳進來的
-            
-            // 方法2：直接從 gs 讀（這個應該正確，因為面板顯示正確）
-            const currentFlipCount = (actor === 'player') ? gs.flipCount : gs.enemyFlipCount;
-            
-            if (flipCount >= 10) {
-                endBattle('flip');
-            }
-        }
+   on: {
+  playerFlip: (gs, actor, flipCount) => {
+    if (flipCount >= 10) {
+      // ⚡ 必加同步：正式向雲端宣告遊戲結束
+      if (actor === 'player' && isOnlineMode()) {
+        db.ref(`rooms/${roomId}/battle`).update({
+          status: 'game-over',
+          winner: myRole,
+          timestamp: Date.now()
+        });
+      }
+      endBattle('flip');
     }
+  }
+}
 },
   
 
@@ -2553,6 +2540,14 @@ const ACCESSORIES = [
         gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
         gs.enemyFlipCount = (gs.enemyFlipCount || 0) + 1;
         log(`🪞 混沌之鏡：對手的行動卡被翻面了！`, 'bad');
+        // 在 effect 裡面執行完翻轉與加點後加入：
+  if (isOnlineMode()) {
+  syncBattle({ 
+    pts: gs.pts, enemyPts: gs.enemyPts,
+    face: gs.face, enemyFace: gs.enemyFace,
+    flipCount: gs.flipCount, enemyFlipCount: gs.enemyFlipCount
+  });
+}
       } else {
         gs.face = gs.face === 'A' ? 'B' : 'A';
         gs.flipCount = (gs.flipCount || 0) + 1;
@@ -2582,6 +2577,14 @@ const ACCESSORIES = [
         gs.face = gs.face === 'A' ? 'B' : 'A';
         gs.flipCount = (gs.flipCount || 0) + 1;
         gs.pts += 3;
+        // 在 effect 裡面執行完翻轉與加點後加入：
+if (isOnlineMode()) {
+  syncBattle({ 
+    pts: gs.pts, enemyPts: gs.enemyPts,
+    face: gs.face, enemyFace: gs.enemyFace,
+    flipCount: gs.flipCount, enemyFlipCount: gs.enemyFlipCount
+  });
+}
         log(`📖 秩序之書：你的行動卡翻面，並獲得 3 點能量！`, 'good');
       } else {
         gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
@@ -2642,16 +2645,17 @@ const ACCESSORIES = [
     on: {
       playerTurnEnd: (gs, actor) => {
         const currentPts = (actor === 'player') ? gs.pts : gs.enemyPts;
-        const label = (actor === 'player') ? '👤 你' : '🤖 對手';
-        // ⚡ 顏色判定
-        const logColor = (actor === 'player') ? 'good' : 'bad';
-
         if (currentPts > 0 && currentPts % 4 === 0) {
           FX.addPts(gs, actor, 3);
-          log(`🔮 ${label} 的水晶共鳴！${currentPts} 是 4 的倍數，+3 點！`, logColor);
-        }
+          log(`🔮 ... +3 點！`, 'good');
+          
+          // ✅ 只有真的發動效果時，才同步給對手
+          if (actor === 'player' && isOnlineMode()) {
+            syncBattle({ pts: gs.pts });
+          }
       }
     }
+  }
   },
 
 {
@@ -2682,13 +2686,27 @@ const ACCESSORIES = [
         }
     },
     
-    effect: (gs, who, dropIdx) => {
-        // 邏輯在 useAccessory 處理
+   effect: (gs, who, dropIdx) => {
+        // 1. 取得當前輪數
         const rounds = (who === 'player') ? gs.medalRounds : gs.enemyMedalRounds;
+        
+        // 2. 判斷是否集齊兩輪
         if (rounds >= 2) {
             const label = (who === 'player') ? '你' : '對手';
-            log(`🏅 ${label} 的獎章光芒萬丈！贏得勝利！`, who === 'player' ? 'good' : 'bad');
+            const logColor = (who === 'player') ? 'good' : 'bad';
+            log(`🏅 ${label} 的獎章光芒萬丈！贏得勝利！`, logColor);
+
             if (who === 'player') {
+                // ⚡ 核心修正：如果是你贏了，立即通知雲端結束遊戲
+                if (typeof isOnlineMode === 'function' && isOnlineMode()) {
+                    db.ref(`rooms/${roomId}/battle`).update({
+                        status: 'game-over',
+                        winner: myRole,
+                        reason: 'medal', // 標註是因為獎章獲勝
+                        timestamp: Date.now()
+                    });
+                }
+                // 本地執行結束動畫
                 setTimeout(() => endBattle('dummy'), 1000);
             }
         }
@@ -2704,7 +2722,6 @@ const ACCESSORIES = [
     desc: '每受到 1 點傷害，偷取對手 6 點行動卡點數。',
     on: {
         playerTakeDamage: (gs, victim, dmg) => {  
-            
             if (victim === 'player') {
                 // 我受傷，偷對手的點數
                 const stealAmount = dmg * 6;
@@ -2714,10 +2731,20 @@ const ACCESSORIES = [
                 if (stolen > 0) {
                     gs.enemyPts = Math.max(0, (gs.enemyPts || 0) - stolen);
                     gs.pts = (gs.pts || 0) + stolen;
+                    // ⚡ 必加同步
+if (isOnlineMode()) syncBattle({ pts: gs.pts, enemyPts: gs.enemyPts });
                     log(`🛡️ 荊棘反甲：從對手偷了 ${stolen} 點！`, 'good');
+
+                    // ⚡ 關鍵修正：同步雙方點數給雲端
+                    if (isOnlineMode()) {
+                        syncBattle({ 
+                            pts: gs.pts, 
+                            enemyPts: gs.enemyPts 
+                        });
+                    }
                 }
             } else {
-                // 對手受傷，偷我的點數
+                // 對手受傷，他的電腦會跑這一段並同步給我，所以我這邊只需要負責更新本地日誌
                 const stealAmount = dmg * 6;
                 const available = gs.pts || 0;
                 const stolen = Math.min(stealAmount, available);
@@ -2726,9 +2753,9 @@ const ACCESSORIES = [
                     gs.pts = Math.max(0, (gs.pts || 0) - stolen);
                     gs.enemyPts = (gs.enemyPts || 0) + stolen;
                     log(`🛡️ 對手反甲：偷了你的 ${stolen} 點！`, 'bad');
+                    // 這裡不需要 syncBattle，因為對方受傷會由對方的電腦發起同步
                 }
             }
-            
         }
     }
 },
@@ -2746,8 +2773,8 @@ const ACCESSORIES = [
       if (dropIdx !== undefined && gs.dice[dropIdx]) {
         val = gs.dice[dropIdx].v;
       } else {
-        const acc = ACCESSORIES.find(a => a.id === 'fate');
-        val = acc.stored[acc.stored.length - 1]; 
+        // ⚡ 核心修正：如果 dropIdx 無效（代表是接收對手訊息），從同步訊息中抓點數
+        val = (gs.lastAction && gs.lastAction.val) ? gs.lastAction.val : 1;
       }
       if(!gs.usedAccs) gs.usedAccs = [];
        gs.usedAccs.push('fate');
@@ -2755,6 +2782,10 @@ const ACCESSORIES = [
       // 簡化判定與文字
       if (who === 'player') {
         gs.enemyNextDie = val;
+        // ⚡ 必加！告訴雲端，對手的下顆骰子被你鎖定了
+    if (isOnlineMode()) {
+      syncBattle({ enemyNextDie: val }); 
+    }
         log(`🎭 命運干擾：對手 下回合第一顆必出 ${FACES[val-1]}`, 'spec');
       } else {
         gs.playerNextDie = val;
@@ -2872,9 +2903,17 @@ const ACCESSORIES = [
     },
     
     effect: (gs, who) => {
+        // 1. 執行本地加成
         FX.addDice(gs, who, 1);
-    }
-},
+
+        // ⚡ 核心修正：如果是我的回合，同步加成數值給對手
+        if (who === 'player' && typeof isOnlineMode === 'function' && isOnlineMode()) {
+            syncBattle({ 
+                bonusDice: gs.bonusDice 
+            });
+        } // 👈 這是 if 的結尾
+    }     // 👈 這是 effect 函式的結尾
+},        // 👈 這是整個火柴物件的結尾 (你剛才漏了這個)
 {
     id: 'reaction',
     name: '應激反應',
@@ -2986,25 +3025,24 @@ function isOnlineMode() {
 
 /**
  * ⚡ 聯網動作發射器 (中控台)
- * 取代原本散落在配件內的 db.ref 直接寫入
+ * 用於取代原本散落在各處的 db.ref().set
  */
 function syncOnlineAction(type, payload = {}) {
-
-  console.log("📣 同步動作:", type, payload);
-
+    // 🛡️ 安全檢查：非聯網模式或無房間號時，直接跳過不報錯
     if (!isOnlineMode() || !roomId) return;
 
     const action = {
         type: type,
         actor: myRole,
         timestamp: Date.now(),
-        actionId: Math.random(), // 防止重複執行的唯一標記
+        // 生成唯一動作 ID，防止對手端重複處理同一動作
+        actionId: Math.random().toString(36).substring(2),
         ...payload
     };
 
-    // 所有的配件動作都統一從這裡「出港」
+    // 所有的配件動作統一從這個出口寫入 Firebase
     db.ref(`rooms/${roomId}/battle/lastAction`).set(action).catch(err => {
-        console.error("❌ 同步動作失敗:", type, err);
+        console.error("❌ syncOnlineAction 失敗:", type, err);
     });
 }
 
@@ -3086,6 +3124,7 @@ function canUseAccessory(acc, dice, dropIdx, who = 'player') {
   // 若尚未儲能，則第一顆必須符合配方才亮框
   return acc.trigger.faces.includes(die.v);
 }
+
 function useAccessory(acc, dice, dropIdx, who = 'player') {
   // 定義哪些配件是每回合限一次的
   const perTurnAccs = ['clock', 'fate', 'splitter']; // 鬧鐘、命運干擾、分裂符文
@@ -3113,7 +3152,6 @@ if (acc.id === 'medal') {
     if (stored.includes(die.v)) {
         if(who === 'player') {
             log(`❌ 點數 ${FACES[die.v-1]} 這一輪已收集過！`, 'bad');
-            // 閃爍提示
             const chip = document.getElementById(`chip_${who}_medal`);
             if(chip) {
                 chip.style.animation = 'errorShake 0.3s ease';
@@ -3131,22 +3169,16 @@ if (acc.id === 'medal') {
         updateMedalDisplay('player');
     }
     
-    // 檢查是否完成一輪
     if (stored.length === 6) {
-        // 更新輪數
         if (who === 'player') {
             gs.medalRounds = (gs.medalRounds || 0) + 1;
+            if (isOnlineMode()) {
+                syncBattle({ medalRounds: gs.medalRounds });
+            }
         } else {
             gs.enemyMedalRounds = (gs.enemyMedalRounds || 0) + 1;
         }
         
-        // ⚡ 連線模式：同步輪數
-        
-       if (who === 'player') {
-    syncBattle({ medalRounds: gs.medalRounds });
-}
-        
-        // 清空這一輪
         ledger[acc.id] = [];
         
         const roundCount = (who === 'player') ? gs.medalRounds : gs.enemyMedalRounds;
@@ -3154,7 +3186,6 @@ if (acc.id === 'medal') {
         const logColor = (who === 'player') ? 'good' : 'bad';
         log(`🏅 ${ownerLabel} 的獎章完成第 ${roundCount} 輪！`, logColor);
         
-        // 檢查是否勝利
         if (roundCount >= 2) {
             if (acc.effect) acc.effect(gs, who, dropIdx, dice);
         } else {
@@ -3295,9 +3326,12 @@ function renderSlots(){
   document.getElementById('slotCount').textContent = loadout.length;
 }
 function renderLibrary() {
+  // ✨ 加上 (playerAccount.unlockedAccessories || []) 
     const body = document.getElementById('prepBody');
     if (!body) return;
     
+    // 🔥 加上這行超強防護墊，確保 ownedIds 永遠是陣列
+    const ownedIds = playerAccount.unlockedAccessories || playerAccount.warehouse || [];
 
     // 1. 清空並初始化容器（過濾器還在！）
     body.innerHTML = '<div id="invFilter"></div>'; 
@@ -3307,7 +3341,7 @@ function renderLibrary() {
     const allAccs = ACCESSORIES;
     
     // 3. 分離已擁有和未擁有的配件
-    const ownedIds = playerAccount.warehouse;
+    
     const ownedAccs = allAccs.filter(acc => ownedIds.includes(acc.id));
     const unownedAccs = allAccs.filter(acc => !ownedIds.includes(acc.id));
     
@@ -3446,7 +3480,7 @@ function renderLibrary() {
         body.appendChild(unownedSection);
     }
     
-    // 11. 如果完全沒有配件（過濾後可能發生）
+     // 11. 如果完全沒有配件（過濾後可能發生）
     if (filteredOwned.length === 0 && filteredUnowned.length === 0) {
         body.innerHTML += '<p style="text-align:center; color:var(--parch-dim); padding:2rem;">📭 沒有符合條件的配件</p>';
     }
@@ -3875,13 +3909,12 @@ function removeAcc(id,e){
   syncLoadoutToCloud();
 }
 
-// 核心同步工具
 function syncLoadoutToCloud() {
-  // PvE 模式不需要同步到雲端
+  // 🛡️ 安全鎖：如果沒有 roomId 或還沒確定 myRole，就直接退出不執行
+  if (!roomId || typeof myRole === 'undefined' || !myRole) return;
+  
   if (lobbyMode === 'pve') return;
   
-  if (!roomId || !myRole) return;
-  // 房主更新 host_loadout，加入者更新 guest_loadout
   const updates = {};
   updates[`${myRole}_loadout`] = loadout;
   db.ref('rooms/' + roomId).update(updates);
@@ -4428,6 +4461,7 @@ function doRoll(){
     db.ref(`rooms/${roomId}/battle`).update({
       lastDice: newDice,
       diceActionId: dId,
+      bonusDice: 0, // 👈 這裡一定要設為 0，防止重複疊加
       timestamp: Date.now()
     });
     db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
@@ -5210,7 +5244,7 @@ function checkLoadoutAndQuickMatch() {
   quickMatch();
 }
 
-
+// ⚡ 修正後的快速配對系統
 function quickMatch() {
   if (!myUID) {
     showTavernMsg("請先推開酒館大門！");
@@ -5218,24 +5252,23 @@ function quickMatch() {
   }
 
   isMatching = true;
-
-  // 計時開始
   let elapsed = 0;
+  
+  // UI 狀態更新
   const btn = document.getElementById('quickMatchArea').querySelector('button');
-  btn.textContent = '匹配中（點擊取消）';
-
+  if (btn) btn.textContent = '匹配中（點擊取消）';
   const statusEl = document.getElementById('matchingStatus');
-  statusEl.style.display = 'block';
-  statusEl.textContent = '0:00';
+  if (statusEl) statusEl.style.display = 'block';
 
+  if (matchingTimer) clearInterval(matchingTimer);
   matchingTimer = setInterval(() => {
     elapsed++;
     const mins = Math.floor(elapsed / 60);
     const secs = elapsed % 60;
-    statusEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    if (statusEl) statusEl.textContent = `⏳ 尋找對手中... ${mins}:${secs.toString().padStart(2, '0')}`;
   }, 1000);
 
-  createQuickMatchWaitingRoom();
+  // 🛡️ 核心：先去看看有沒有人已經開好房間在等你
   findAvailableRoom();
 }
 
@@ -5252,12 +5285,23 @@ function createQuickMatchWaitingRoom() {
     host_loadout: [],
     host_ready: false,
     status: 'waiting',
-    isQuickMatch: true,  // 標記為快速配對房間
+    isQuickMatch: true,
     createdAt: Date.now(),
     timestamp: Date.now(),
     version: '2.0'
   }).then(() => {
     setupPresence(roomId, 'host');
+    
+    // ⚡ 房主專屬：開始盯著這個房間看
+    db.ref('rooms/' + roomId).on('value', (snap) => {
+      const room = snap.val();
+      // 🛡️ 如果發現狀態變成 pre-battle (代表客人進來了)，且我還在匹配中
+      if (room && room.status === 'pre-battle' && isMatching) {
+        cancelMatching(); // 停止轉圈圈
+        enterLobby();    // 房主也跳轉進大廳
+        showTavernMsg('🎉 配對成功！');
+      }
+    });
   });
 }
 
@@ -5272,61 +5316,71 @@ function cancelMatching() {
   const statusEl = document.getElementById('matchingStatus');
   if (statusEl) statusEl.style.display = 'none';
 }
-
 function findAvailableRoom() {
   if (!isMatching) return;
 
   const now = Date.now();
+  db.ref('rooms').orderByChild('status').equalTo('waiting').once('value').then((snapshot) => {
+    if (!isMatching) return;
+    const rooms = snapshot.val();
+    let availableRoomId = null;
 
-  db.ref('rooms')
-    .orderByChild('status')
-    .equalTo('waiting')
-    .once('value')
-    .then((snapshot) => {
-      if (!isMatching) return;
-
-      const rooms = snapshot.val();
-      let availableRoom = null;
-
-      if (rooms) {
-        for (const [id, data] of Object.entries(rooms)) {
-          const isValid =
-            data.host !== myUID &&
-            !data.guest &&
-            data.timestamp &&
-            (now - data.timestamp < ROOM_TIMEOUT) &&
-            data.status === 'waiting' &&
-            data.isQuickMatch === true; // 只配對快速配對的房間
-          if (isValid) {
-            availableRoom = id;
-            break;
-          }
+    if (rooms) {
+      for (const [id, data] of Object.entries(rooms)) {
+        if (data.host !== myUID && data.isQuickMatch && !data.guest) {
+          availableRoomId = id;
+          break;
         }
       }
+    }
 
-      if (availableRoom) {
-        cancelMatching();
-        roomId = availableRoom;
-        myRole = 'guest';
-        db.ref('rooms/' + roomId).update({
-          guest: myUID,
-          guest_loadout: [],
-          guest_ready: false,
-          status: 'pre-battle',
-          timestamp: Date.now()
-        }).then(() => {
-          setupPresence(roomId, 'guest');
-          enterLobby();
-          showTavernMsg('🎉 配對成功！');
-        });
-      } else {
-        // 沒找到，5 秒後再試
-        setTimeout(() => findAvailableRoom(), 5000);
-      }
-    })
-    .catch(() => {
-      setTimeout(() => findAvailableRoom(), 5000);
-    });
+    if (availableRoomId) {
+      // ✅ 找到對手房間：當客人加入
+      cancelMatching();
+      roomId = availableRoomId;
+      myRole = 'guest'; // 這裡定義了 myRole
+      db.ref('rooms/' + roomId).update({
+        guest: myUID,
+        guest_loadout: [],
+        guest_ready: false,
+        status: 'pre-battle', // ⚡ 這一行是發給房主的訊號
+        status: 'pre-battle',
+        timestamp: Date.now()
+      }).then(() => {
+        setupPresence(roomId, 'guest');
+        enterLobby();
+        showTavernMsg('🎉 配對成功！');
+      });
+    } else {
+      // ❌ 沒房可加：這時候才呼叫你原本的函式來「開桌」當房主
+      // 這樣 myRole 就會在 createQuickMatchWaitingRoom 裡面被定義為 'host'
+      createQuickMatchWaitingRoom(); 
+    }
+  });
+}
+
+// ⚡ 這是配合上面的新函式，請放在旁邊
+function createQuickMatchRoom() {
+  const adjectives = ['微醺', '沉默', '可愛', '冷靜', '失控', '偷懶', '孤單', '固執'];
+  const nouns = ['寶寶', '水母', '矮人', '魔族', '精靈', '哥布林', '幽靈', '船長'];
+  const newId = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${Math.floor(Math.random() * 100)}`;
+  
+  roomId = newId;
+  myRole = 'host';
+
+  db.ref('rooms/' + roomId).set({
+    host: myUID,
+    host_loadout: [],
+    host_ready: false,
+    status: 'waiting',
+    isQuickMatch: true,
+    timestamp: Date.now(),
+    version: '2.0'
+  }).then(() => {
+    setupPresence(roomId, 'host');
+    // 房主不需要 enterLobby，因為他要在背景等待 guest 出現
+    // 他的 enterLobby 會由 setupPresence 之後的監聽自動觸發
+  });
 }
 
 // 進入大廳的輔助函式
@@ -5546,11 +5600,6 @@ if (enemyText && enemyBadge) {
     statusEl.style.color = enemyIsReady ? "var(--gold-lt)" : "var(--parch-dim)";
   }
   
-  // ⚡ 快速配對自動準備：如果我是房主且已經帶了裝備
-  if (myRole === 'host' && loadout.length > 0 && !roomData.host_ready) {
-    // 自動準備
-    db.ref(`rooms/${roomId}/host_ready`).set(true);
-  }
 
   // ⚡ 2. 關鍵修正：加上 !isInBattle 判斷
   const myReady = roomData[`${myRole}_ready`];
@@ -5738,82 +5787,74 @@ function listenToBattleActions() {
   
   battleRef.off();
 
+  // ⚡ 關鍵修正：在這裡定義標記，用來記住對手是否「曾經斷線」
+  let opponentWasDisconnected = false; 
 
-// 監聽對手是否斷線
+  // 監聽房間根目錄（判斷對手是否斷線）
   const roomRootRef = db.ref(`rooms/${roomId}`);
   roomRootRef.on('value', (snap) => {
     const room = snap.val();
-    if (!room || !isInBattle || gs.isGameOver) return;
+    // 如果遊戲結束或不在戰鬥中，就不執行斷線判定
+    if (!room || !isInBattle || (gs && gs.isGameOver)) return;
 
-    const opponentLeft = myRole === 'host'
-      ? !room.guest
-      : room.status === 'abandoned';
+    // 1. 判定對手當前是否在線上
+    const opponentLeft = myRole === 'host' ? !room.guest : room.status === 'abandoned';
+    const opponentBack = myRole === 'host' ? !!room.guest : room.status === 'battle';
 
-    const opponentBack = myRole === 'host'
-      ? !!room.guest
-      : room.status === 'battle';
-
-    // 移除舊的斷線提示
-    const oldMsg = document.getElementById('disconnectMsg');
-    if (oldMsg) oldMsg.remove();
-
-  if (opponentLeft) {
-      // 避免重複啟動計時器
+    // 2. 處理「對手離開」
+    if (opponentLeft) {
+      opponentWasDisconnected = true; // 記住對手斷線了
+      
+      // 避免重複顯示提示
       if (document.getElementById('disconnectMsg')) return;
 
       let countdown = 60;
       const container = document.getElementById('toast-container');
-      if (!container) return;
+      if (container) {
+        const el = document.createElement('div');
+        el.id = 'disconnectMsg';
+        el.className = 'toast-msg';
+        el.style.background = 'linear-gradient(135deg, #5a3e1b 0%, #8b5e2a 100%)';
+        el.innerHTML = `📡 對手斷線了<br>${countdown} 秒後判對手負`;
+        container.appendChild(el);
 
-      const el = document.createElement('div');
-      el.id = 'disconnectMsg';
-      el.className = 'toast-msg';
-      el.style.background = 'linear-gradient(135deg, #5a3e1b 0%, #8b5e2a 100%)';
-      el.innerHTML = `📡 對手斷線了<br>${countdown} 秒後判對手負`;
-      container.appendChild(el);
-
-      // 儲存計時器 ID 方便取消
-      window._disconnectTimer = setInterval(() => {
-        countdown--;
-        const msgEl = document.getElementById('disconnectMsg');
-        if (!msgEl) {
-          clearInterval(window._disconnectTimer);
-          return;
-        }
-        msgEl.innerHTML = `📡 對手斷線了<br>${countdown} 秒後判對手負`;
-
-        if (countdown <= 0) {
-          clearInterval(window._disconnectTimer);
-          if (document.getElementById('disconnectMsg')) {
-            document.getElementById('disconnectMsg').remove();
+        // 啟動倒數計時器
+        if (window._disconnectTimer) clearInterval(window._disconnectTimer);
+        window._disconnectTimer = setInterval(() => {
+          countdown--;
+          const msgEl = document.getElementById('disconnectMsg');
+          if (msgEl) {
+            msgEl.innerHTML = `📡 對手斷線了<br>${countdown} 秒後判對手負`;
           }
-          // 再確認對手真的還沒回來
-          db.ref(`rooms/${roomId}`).once('value').then(snap => {
-            const room = snap.val();
-            if (!room || !isInBattle || gs.isGameOver) return;
-            const stillGone = myRole === 'host' ? !room.guest : room.status === 'abandoned';
-            if (stillGone) {
-              // 宣告對手判負
-              db.ref(`rooms/${roomId}/battle`).update({
-                status: 'game-over',
-                winner: myRole,
-                timestamp: Date.now()
-              });
-            }
-          });
-        }
-      }, 1000);
-
-    } else if (opponentBack) {
-      // 對手回來了，取消計時
-      if (window._disconnectTimer) {
-        clearInterval(window._disconnectTimer);
-        window._disconnectTimer = null;
+          if (countdown <= 0) {
+            clearInterval(window._disconnectTimer);
+            db.ref(`rooms/${roomId}/battle`).update({
+              status: 'game-over',
+              winner: myRole,
+              timestamp: Date.now()
+            });
+          }
+        }, 1000);
       }
-        clearTurnTimer(false);
-      const oldMsg = document.getElementById('disconnectMsg');
-      if (oldMsg) oldMsg.remove();
-      showTavernMsg('✅ 對手已重新連線！', 3000);
+    } 
+    // 3. 處理「對手回來」
+    else if (opponentBack) {
+      // 只有當「剛才真的有斷線」時，才執行恢復邏輯
+      if (opponentWasDisconnected) {
+        opponentWasDisconnected = false; // 重置標記，防止狂跳通知
+        
+        // 清除計時器與訊息
+        if (window._disconnectTimer) {
+          clearInterval(window._disconnectTimer);
+          window._disconnectTimer = null;
+        }
+        const oldMsg = document.getElementById('disconnectMsg');
+        if (oldMsg) oldMsg.remove();
+        
+        // 顯示通知並同步畫面
+        showTavernMsg('✅ 對手已重新連線！', 3000);
+        if (typeof renderBattle === 'function') renderBattle();
+      }
     }
   });
 
@@ -5873,6 +5914,7 @@ function listenToBattleActions() {
       gs.dice = []; 
       gs.usedAccs = [];      
       gs.enemyUsedAccs = []; 
+      renderBattle(); // 👈 重新渲染畫面
     }
 
    // C. ⚡ 聯網動作分發 (簡潔版)
@@ -5909,24 +5951,23 @@ function listenToBattleActions() {
     }, 50);
   });
 }
-
-// ⚡ 全局監聽器清理（用於被踢出或頁面重置）
 function globalOff() {
-  // 移除房間相關監聽
-  if (roomId) {
+  // ⚡ 核心修正：使用 typeof 檢查變數是否存在，防止未定義崩潰
+  if (typeof roomId !== 'undefined' && roomId) {
     db.ref(`rooms/${roomId}`).off();
     db.ref(`rooms/${roomId}/battle`).off();
   }
+
   // 移除配對相關監聽
   db.ref('rooms').off();
 
-  // 清除所有計時器
-  if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
-  if (matchingTimer)  { clearInterval(matchingTimer);  matchingTimer  = null; }
+  // 清除所有計時器，加入安全檢查
+  if (typeof reconnectTimer !== 'undefined' && reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+  if (typeof matchingTimer !== 'undefined' && matchingTimer)  { clearInterval(matchingTimer);  matchingTimer  = null; }
   if (typeof _turnTimer !== 'undefined' && _turnTimer) { clearTurnTimer(false); }
-  if (window._disconnectTimer) { clearInterval(window._disconnectTimer); window._disconnectTimer = null; }
+  if (typeof window._disconnectTimer !== 'undefined' && window._disconnectTimer) { clearInterval(window._disconnectTimer); window._disconnectTimer = null; }
 
-  console.log('🔌 所有監聽器已清除');
+  console.log('🔌 所有監聽器已安全清除');
 }
 
 // 通用房間清理函式
@@ -6002,6 +6043,8 @@ function exitBattleAndGoToPrep() {
 
 // 3. 補上一個同步配件清單的工具 (給 Lobby 用)
 function syncLoadoutToCloud() {
+
+
   if (!roomId || !myRole) return;
   const updates = {};
   updates[`${myRole}_loadout`] = loadout;
