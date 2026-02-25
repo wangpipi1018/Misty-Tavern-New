@@ -1,0 +1,2207 @@
+
+/* ── TOKENS ─────────────────────────────── */
+
+:root{
+
+  --ink:       #0c0a08;
+
+  --parch:     #f5ead6;
+
+  --parch-dim: #d4c4a0;
+
+  --ember:     #c8622a;
+
+  --ember-glow:#f5a050;
+
+  --gold:      #c9943a;
+
+  --gold-lt:   #e8c070;
+
+  --gold-dk:   #7a5820;
+
+  --wax:       #8b1c1c;
+
+  --wax-lt:    #c0392b;
+
+  --jade:      #1a4a38;
+
+  --jade-lt:   #2e8b57;
+
+  --smoke:     #2a2218;
+
+  --smoke-lt:  #3d3326;
+
+  --leather:   #4a3220;
+
+  --leather-lt:#6b4c30;
+
+  --rune-blue: #1e3a5a;
+
+  --rune-lt:   #4a8ab0;
+
+  --r:4px; --r-lg:10px; --r-xl:16px;
+
+}
+
+
+
+*{
+
+  box-sizing:border-box;
+
+  margin:0;
+
+  padding:0;
+
+  -webkit-tap-highlight-color:transparent;
+
+  /* ⚡ 手機優化：防止長按彈出選單，避免干擾拖拽 */
+
+  -webkit-touch-callout: none; 
+
+  -webkit-user-select: none;
+
+  user-select: none;
+
+}
+
+
+
+body{
+
+  font-family:'Noto Serif TC',serif;
+
+  background:var(--ink);
+
+  color:var(--parch);
+
+  min-height:100svh;
+
+  overflow:hidden;
+
+  position:relative;
+
+}
+
+.bg-canvas{
+
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+
+  background:
+
+    radial-gradient(ellipse 55% 70% at 30% 100%, rgba(200,98,42,.18) 0%,transparent 60%),
+
+    radial-gradient(ellipse 40% 50% at 80% 90%,  rgba(200,98,42,.10) 0%,transparent 55%),
+
+    radial-gradient(ellipse 80% 80% at 50% 50%,  #1a1208 0%,#0c0a08 100%);
+
+  animation:bgBreath 15s ease-in-out infinite alternate;
+
+}
+
+@keyframes bgBreath{from{filter:brightness(1)}to{filter:brightness(1.08)}}
+
+.vignette{
+
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+
+  background:radial-gradient(ellipse 90% 90% at 50% 50%,transparent 40%,rgba(0,0,0,.75) 100%);
+
+  animation:flicker 0.15s steps(1) infinite;
+
+}
+
+@keyframes flicker{
+
+  0%{opacity:.9}8%{opacity:.92}16%{opacity:.88}24%{opacity:.91}32%{opacity:.93}
+
+  50%{opacity:.89}64%{opacity:.92}80%{opacity:.90}100%{opacity:.91}
+
+}
+
+.mote{
+
+  position:fixed;border-radius:50%;pointer-events:none;z-index:0;
+
+  background:radial-gradient(circle,rgba(200,98,42,.55) 0%,transparent 70%);
+
+  animation:moteFloat linear infinite;
+
+}
+
+@keyframes moteFloat{
+
+  0%{transform:translateY(0) translateX(0) scale(.6);opacity:0}
+
+  10%{opacity:1}
+
+  50%{transform:translateY(-45vh) translateX(20px) scale(1)}
+
+  90%{opacity:.4}
+
+  100%{transform:translateY(-95vh) translateX(-10px) scale(.4);opacity:0}
+
+}
+
+.screen{
+
+  position:fixed;inset:0;z-index:10;
+
+  display:flex;flex-direction:column;
+
+  transition:opacity .4s,transform .4s;
+
+}
+
+.screen.out{opacity:0;transform:scale(.97);pointer-events:none}
+
+
+
+/* ══════════════════════════════════════════
+
+   INTRO SCREEN (unchanged)
+
+══════════════════════════════════════════ */
+
+#tavernDoorScreen{
+
+  align-items:center;
+
+  justify-content:center;      /* 改回置中 */
+
+  padding: 0 1rem;             /* 只有左右留白，不要上下 */
+
+  gap: 0.5rem;                 /* 元件之間的間距 */
+
+}
+
+.inn-sign{
+
+  position:relative;width:min(320px,88vw);background:var(--leather);
+
+  border:3px solid var(--gold-dk);border-radius:var(--r-lg);
+
+  padding:2rem 1.8rem 1.6rem;text-align:center;
+
+  box-shadow:0 0 0 1px rgba(201,148,58,.2),0 0 40px rgba(200,98,42,.35),inset 0 0 30px rgba(0,0,0,.5);
+
+  animation:signSway 6s ease-in-out infinite;
+
+}
+
+@keyframes signSway{0%,100%{transform:rotate(-.4deg)}50%{transform:rotate(.4deg)}}
+
+.inn-sign::before{
+
+  content:'';position:absolute;inset:0;border-radius:var(--r-lg);opacity:.12;
+
+  background:repeating-linear-gradient(5deg,transparent 0px,transparent 3px,rgba(0,0,0,.4) 3px,rgba(0,0,0,.4) 4px);
+
+  pointer-events:none;
+
+}
+
+.inn-sign::after{
+
+  content:'';position:absolute;top:-22px;left:50%;transform:translateX(-50%);
+
+  width:2px;height:22px;background:linear-gradient(180deg,transparent,var(--gold-dk));
+
+}
+
+.sign-ornament{
+
+  font-size:.75rem;color:var(--gold-dk);letter-spacing:.3em;margin-bottom:.4rem;
+
+  display:flex;align-items:center;gap:.5rem;justify-content:center;
+
+}
+
+.sign-ornament span{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dk),transparent)}
+
+.sign-title{
+
+  font-family:'Uncial Antiqua',cursive;font-size:clamp(1.6rem,6vw,2.2rem);
+
+  color:var(--gold-lt);text-shadow:0 0 20px rgba(200,98,42,.8),0 2px 4px rgba(0,0,0,.8);
+
+  line-height:1.15;letter-spacing:.06em;
+
+}
+
+.sign-en{
+
+  font-family:'IM Fell English',serif;font-style:italic;
+
+  font-size:.8rem;color:var(--parch-dim);letter-spacing:.18em;margin-top:.3rem;
+
+}
+
+.sign-divider{margin:1rem auto;width:80%;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dk),transparent)}
+
+.sign-tagline{font-family:'IM Fell English',serif;font-style:italic;font-size:.85rem;color:var(--parch-dim);line-height:1.6}
+
+.candle-row{display:flex;gap:2.5rem;justify-content:center;margin:1.4rem 0 .8rem}
+
+.candle{position:relative;display:flex;flex-direction:column;align-items:center}
+
+.candle-flame{
+
+  width:10px;height:16px;
+
+  background:radial-gradient(ellipse at 50% 100%,var(--ember-glow) 0%,var(--ember) 60%,transparent 100%);
+
+  border-radius:50% 50% 30% 30%;animation:flameDance 1.8s ease-in-out infinite alternate;
+
+  filter:drop-shadow(0 0 4px var(--ember));margin-bottom:-1px;
+
+}
+
+@keyframes flameDance{
+
+  0%{transform:scaleX(1) scaleY(1) rotate(-2deg);filter:drop-shadow(0 0 4px var(--ember))}
+
+  33%{transform:scaleX(.85) scaleY(1.1) rotate(1deg);filter:drop-shadow(0 0 7px var(--ember-glow))}
+
+  66%{transform:scaleX(1.1) scaleY(.95) rotate(-1deg);filter:drop-shadow(0 0 5px var(--ember))}
+
+  100%{transform:scaleX(.9) scaleY(1.05) rotate(2deg);filter:drop-shadow(0 0 8px var(--ember-glow))}
+
+}
+
+
+
+.candle-body{
+
+  width:14px;height:40px;background:linear-gradient(180deg,#e8d8b8 0%,#c8b898 100%);
+
+  border-radius:2px;box-shadow:inset -3px 0 6px rgba(0,0,0,.3);
+
+}
+
+.candle-glow{
+
+  position:absolute;top:-4px;width:30px;height:30px;border-radius:50%;
+
+  background:radial-gradient(circle,rgba(245,160,80,.35) 0%,transparent 70%);
+
+  animation:glowPulse 1.8s ease-in-out infinite alternate;
+
+}
+
+@keyframes glowPulse{from{opacity:.6;transform:scale(1)}to{opacity:1;transform:scale(1.2)}}
+
+.btn-enter{
+
+  display:block;width:100%;max-width:240px;margin:.2rem auto;padding:.85rem 1.5rem;
+
+  font-family:'Uncial Antiqua',cursive;font-size:.9rem;letter-spacing:.08em;color:var(--ink);
+
+  background:linear-gradient(135deg,var(--gold-dk) 0%,var(--gold) 50%,var(--gold-dk) 100%);
+
+  border:none;border-radius:var(--r);cursor:pointer;
+
+  box-shadow:0 4px 18px rgba(201,148,58,.4),inset 0 1px 0 rgba(255,255,255,.25);
+
+  transition:all .2s;position:relative;overflow:hidden;
+
+}
+
+.btn-enter::before{
+
+  content:'';position:absolute;inset:0;
+
+  background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.22) 50%,transparent 60%);
+
+  transform:translateX(-100%);transition:transform .5s;
+
+}
+
+.btn-enter:hover::before{transform:translateX(100%)}
+
+.btn-enter:active{transform:scale(.96)}
+
+
+
+
+
+/* ══════════════════════════════════════════
+
+   不知道要加在哪裡
+
+══════════════════════════════════════════ */
+
+.badge-appear {
+
+  animation: badgePop 0.3s ease-out;
+
+}
+
+
+
+@keyframes badgePop {
+
+  0% { transform: scale(0); opacity: 0; }
+
+  50% { transform: scale(1.2); }
+
+  100% { transform: scale(1); opacity: 1; }
+
+}
+
+
+
+/* 確認對話框動畫 */
+
+@keyframes fadeIn {
+
+  from { opacity: 0; }
+
+  to { opacity: 1; }
+
+}
+
+
+
+@keyframes slideUp {
+
+  from { 
+
+    transform: translateY(20px);
+
+    opacity: 0;
+
+  }
+
+  to { 
+
+    transform: translateY(0);
+
+    opacity: 1;
+
+  }
+
+}
+
+.medal-progress {
+
+    display: flex;
+
+    gap: 2px;
+
+    justify-content: center;
+
+    margin-top: 2px;
+
+}
+
+
+
+.medal-dot {
+
+    font-size: 0.45rem;
+
+    width: 12px;
+
+    height: 12px;
+
+    border-radius: 50%;
+
+    background: var(--smoke-lt);
+
+    color: var(--parch-dim);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+}
+
+
+
+.medal-dot.collected {
+
+    background: var(--gold);
+
+    color: var(--ink);
+
+    animation: medalCollect 0.3s ease;
+
+}
+
+
+
+@keyframes medalCollect {
+
+    0% { transform: scale(0); }
+
+    50% { transform: scale(1.2); }
+
+    100% { transform: scale(1); }
+
+}
+
+
+
+.medal-round {
+
+    font-size: 0.35rem;
+
+    color: var(--gold-lt);
+
+    margin-top: 2px;
+
+}
+
+
+
+@keyframes errorShake {
+
+    0%, 100% { transform: translateX(0); }
+
+    20% { transform: translateX(-3px); }
+
+    40% { transform: translateX(3px); }
+
+    60% { transform: translateX(-2px); }
+
+    80% { transform: translateX(2px); }
+
+}
+
+/* ══════════════════════════════════════════
+
+   PREP SCREEN (styles unchanged, 480px max-width already applied)
+
+══════════════════════════════════════════ */
+
+#prepScreen{overflow:hidden}
+
+.prep-header{
+
+  flex-shrink:0;background:linear-gradient(180deg,var(--leather) 0%,var(--smoke) 100%);
+
+  border-bottom:1px solid var(--gold-dk);padding:.7rem 1rem .6rem;position:relative;
+
+}
+
+.prep-header::after{
+
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+
+}
+
+.ph-top{display:flex;align-items:center;justify-content:space-between}
+
+.ph-title{
+
+  font-family:'Uncial Antiqua',cursive;font-size:1rem;color:var(--gold-lt);letter-spacing:.06em;
+
+  text-shadow:0 0 12px rgba(200,98,42,.6);
+
+}
+
+.ph-sub{font-family:'IM Fell English',serif;font-style:italic;font-size:.72rem;color:var(--parch-dim);margin-top:.15rem}
+
+.slots-strip{
+
+  flex-shrink:0;padding:.6rem 1rem .5rem;background:var(--smoke);
+
+  border-bottom:1px solid rgba(201,148,58,.15);
+
+  max-width:480px;margin:0 auto;width:100%;
+
+}
+
+.slots-label{
+
+  font-family:'IM Fell English',serif;font-style:italic;font-size:.68rem;
+
+  color:var(--gold-dk);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;
+
+}
+
+.slots-row{display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap;width:100%}
+
+.eq-slot{
+
+  flex:1;min-height:72px;max-width:72px;background:var(--smoke-lt);
+
+  border:1.5px dashed var(--gold-dk);border-radius:var(--r-lg);
+
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+
+  cursor:pointer;transition:all .25s;position:relative;overflow:hidden;padding:.3rem .2rem;
+
+}
+
+.eq-slot.filled{
+
+  border-style:solid;border-color:var(--gold);
+
+  background:linear-gradient(160deg,var(--smoke-lt),var(--leather));
+
+  box-shadow:0 0 10px rgba(201,148,58,.2),inset 0 0 8px rgba(0,0,0,.3);
+
+}
+
+.eq-slot.filled:active{transform:scale(.94)}
+
+.eq-slot .slot-ico{font-size:1.6rem;line-height:1}
+
+.eq-slot .slot-nm{
+
+  font-size:.58rem;color:var(--gold);font-family:'IM Fell English',serif;
+
+  text-align:center;margin-top:.15rem;line-height:1.2;
+
+}
+
+.eq-slot .slot-empty-txt{font-size:.55rem;color:var(--leather-lt);font-family:'IM Fell English',serif;font-style:italic}
+
+.remove-x{
+
+  position:absolute;top:2px;right:3px;width:14px;height:14px;border-radius:50%;
+
+  background:var(--wax);border:none;cursor:pointer;font-size:.55rem;color:rgba(255,255,255,.8);
+
+  display:none;align-items:center;justify-content:center;transition:background .2s;
+
+}
+
+.remove-x:hover{background:var(--wax-lt)}
+
+.eq-slot.filled .remove-x{display:flex}
+
+.slots-count{
+
+  font-family:'IM Fell English',serif;font-size:.72rem;color:var(--parch-dim);
+
+  padding:.2rem 0 0 .2rem;white-space:nowrap;flex-shrink:0;align-self:flex-end;
+
+}
+
+.slots-count .n{color:var(--gold-lt);font-size:.9rem}
+
+.prep-body{flex:1;overflow-y:auto;padding:.7rem 1rem 6rem;scroll-behavior:smooth}
+
+.prep-body::-webkit-scrollbar{width:4px}
+
+.prep-body::-webkit-scrollbar-track{background:transparent}
+
+.prep-body::-webkit-scrollbar-thumb{background:var(--gold-dk);border-radius:2px}
+
+.cat-section{margin-bottom:1.2rem}
+
+.cat-label{
+
+  display:flex;align-items:center;gap:.5rem;font-family:'IM Fell English',serif;font-style:italic;
+
+  font-size:.75rem;color:var(--gold);letter-spacing:.08em;margin-bottom:.55rem;
+
+}
+
+.cat-label::before,.cat-label::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dk),transparent)}
+
+.acc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem}
+
+/* ⚡ 基礎樣式：預設是亮的 (已擁有) */
+
+/* 修正卡片內部間距，避免文字擠在一起 */
+
+
+
+/* ⚡ 配件卡片 - 基礎樣式 */
+
+.acc-card {
+
+  min-height: 110px;
+
+  padding: 0.8rem;
+
+  justify-content: flex-start;
+
+  background: linear-gradient(145deg, var(--smoke-lt) 0%, var(--smoke) 100%);
+
+  border: 2px solid var(--leather-lt);
+
+  border-radius: var(--r-xl);
+
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+
+  position: relative;
+
+  transition: all 0.2s ease;
+
+}
+
+
+
+.acc-card * {
+
+  pointer-events: none;
+
+}
+
+
+
+.acc-card .equipped-tick, 
+
+.acc-card .locked-badge {
+
+  pointer-events: none;
+
+}
+
+
+
+.acc-card::before {
+
+  content: '';
+
+  position: absolute;
+
+  inset: 0;
+
+  border-radius: var(--r-xl);
+
+  opacity: .04;
+
+  pointer-events: none;
+
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+
+}
+
+
+
+/* 已擁有的卡片 - 更明顯 */
+
+.acc-card:not(.locked) {
+
+  border-color: var(--gold-dk);
+
+  background: linear-gradient(145deg, #3a2e20 0%, #2a2218 100%);
+
+  box-shadow: 0 4px 0 var(--gold-dk), 0 0 15px rgba(201, 148, 58, 0.2);
+
+}
+
+
+
+
+
+
+
+/* 未解鎖的卡片 */
+
+.acc-card.locked {
+
+  filter: grayscale(0.8) brightness(0.5);
+
+  opacity: 0.7;
+
+  border: 2px dashed var(--leather-lt);
+
+  background: rgba(42, 34, 24, 0.6);
+
+  box-shadow: none;
+
+  cursor: help;
+
+}
+
+
+
+/* 卡片懸浮效果 */
+
+.acc-card:not(.locked):hover {
+
+  transform: translateY(-4px);
+
+  box-shadow: 0 6px 0 var(--gold-dk), 0 10px 20px rgba(0,0,0,0.5);
+
+}
+
+
+
+
+
+.acc-card.maxed {
+
+  opacity: .4;
+
+  cursor: not-allowed;
+
+}
+
+
+
+.acc-card.maxed:hover {
+
+  transform: none;
+
+  box-shadow: none;
+
+}
+
+/* 裝備中的卡片呼吸特效 */
+
+@keyframes equippedPulse {
+
+  0% { box-shadow: 0 0 8px rgba(201, 148, 58, 0.2); transform: scale(1); }
+
+  100% { box-shadow: 0 0 20px rgba(201, 148, 58, 0.5); transform: scale(1.02); }
+
+}
+
+
+
+.acc-card.maxed{opacity:.4;cursor:not-allowed}
+
+.acc-card.maxed:hover{transform:none;box-shadow:none}
+
+/* 🌚 修正未擁有配件樣式：不要過度變暗 */
+
+.acc-card.locked {
+
+  filter: grayscale(0.8) brightness(0.5); /* 稍微降低亮度就好 */
+
+  opacity: 0.7;
+
+  border: 1px dashed var(--leather-lt);
+
+  background: rgba(42, 34, 24, 0.4);
+
+  cursor: help; /* 提示可以點擊看說明 */
+
+}
+
+
+
+.rarity-star-v2 {
+
+  font-size: 0.55rem;
+
+  color: #ffcc00; /* 明亮的金色 */
+
+  filter: drop-shadow(0 0 2px rgba(255, 204, 0, 0.5));
+
+}
+
+
+
+/* 只有鎖定時星星才跟著變暗 */
+
+.acc-card.locked .rarity-star-v2 {
+
+  color: #7a5820;
+
+  filter: none;
+
+}
+
+
+
+/* 戳印樣式：蓋在卡片中間 */
+
+.locked-badge {
+
+  position: absolute;
+
+  top: 50%;
+
+  left: 50%;
+
+  transform: translate(-50%, -50%) rotate(-15deg);
+
+  background: rgba(139, 28, 28, 0.6); /* 暗紅色 */
+
+  color: white;
+
+  border: 1px solid var(--wax-lt);
+
+  padding: 2px 10px;
+
+  font-size: 0.6rem;
+
+  font-weight: bold;
+
+  font-family: 'MedievalSharp', cursive;
+
+  white-space: nowrap;
+
+  pointer-events: none;
+
+  z-index: 5;
+
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+
+}
+
+.acc-top{display:flex;align-items:flex-start;gap:.5rem}
+
+.acc-icon-wrap{
+
+  width:42px;height:42px;flex-shrink:0;border-radius:50%;
+
+  background:radial-gradient(circle,var(--leather) 0%,var(--smoke) 100%);
+
+  border:1.5px solid var(--leather-lt);display:flex;align-items:center;justify-content:center;
+
+  font-size:1.5rem;transition:border-color .2s,box-shadow .2s;
+
+}
+
+.acc-icon-wrap .equipped-ring{
+
+  position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold-lt);opacity:0;animation:none;
+
+}
+
+@keyframes ringPulse{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.15);opacity:0}}
+
+.acc-meta{flex:1;min-width:0}
+
+.acc-name {
+
+  font-family: 'Uncial Antiqua', cursive;
+
+  font-size: 0.75rem;
+
+  color: var(--gold-lt);
+
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+
+  letter-spacing: .03em;
+
+  line-height: 1.2;
+
+}
+
+.acc-type-badge{
+
+  display:inline-flex;align-items:center;gap:.2rem;padding:.1rem .35rem;border-radius:2px;
+
+  font-size:.48rem;letter-spacing:.05em;font-family:'IM Fell English',serif;margin-top:.2rem;
+
+}
+
+.badge-active{background:rgba(139,28,28,.5);color:#e88080;border:1px solid rgba(139,28,28,.6)}
+
+.badge-passive{background:rgba(30,58,90,.5);color:#80b8e0;border:1px solid rgba(30,58,90,.6)}
+
+.acc-req{font-family:'IM Fell English',serif;font-style:italic;font-size:.6rem;color:var(--ember);margin-top:.05rem}
+
+.acc-desc {
+
+  font-family: 'IM Fell English', serif;
+
+  font-size: 0.65rem;
+
+  color: var(--parch);
+
+  line-height: 1.45;
+
+  border-top: 1px solid rgba(201,148,58,.2);
+
+  padding-top: .25rem;
+
+  margin-top: .1rem;
+
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+
+}
+
+.equipped-tick{
+
+  position:absolute;top:.4rem;right:.45rem;font-size:.7rem;color:var(--gold-lt);
+
+  opacity:0;transition:opacity .2s;text-shadow:0 0 6px var(--gold);
+
+}
+
+
+
+
+
+.prep-footer{
+
+  position:fixed;bottom:0;left:0;right:0;z-index:20;padding:.7rem 1rem;
+
+  background:linear-gradient(0deg,rgba(12,10,8,.98) 70%,transparent 100%);
+
+}
+
+.cta-row{display:flex;gap:.6rem;align-items:center}
+
+.btn-battle{
+
+  flex:1;padding:.85rem;font-family:'Uncial Antiqua',cursive;font-size:.85rem;letter-spacing:.06em;
+
+  color:var(--ink);background:linear-gradient(135deg,#9a6010 0%,var(--gold) 45%,#9a6010 100%);
+
+  border:none;border-radius:var(--r);cursor:pointer;
+
+  box-shadow:0 4px 20px rgba(201,148,58,.4),inset 0 1px 0 rgba(255,255,255,.2);
+
+  transition:all .2s;position:relative;overflow:hidden;
+
+}
+
+.btn-battle::after{
+
+  content:'';position:absolute;inset:0;
+
+  background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.18) 50%,transparent 60%);
+
+  transform:translateX(-100%);transition:transform .45s;
+
+}
+
+.btn-battle:hover::after{transform:translateX(100%)}
+
+.btn-battle:active{transform:scale(.97)}
+
+.btn-battle:disabled{opacity:.35;cursor:not-allowed}
+
+.btn-back{
+
+  padding:.85rem .9rem;background:transparent;border:1.5px solid var(--leather-lt);border-radius:var(--r);
+
+  color:var(--parch-dim);cursor:pointer;font-size:.75rem;transition:all .2s;
+
+}
+
+.btn-back:hover{border-color:var(--gold-dk);color:var(--parch)}
+
+
+
+/* 🕯️ 酒館風格通知訊息 - 中文優化版 */
+
+#toast-container {
+
+  position: fixed;
+
+  top: 30px;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  z-index: 9999;
+
+  pointer-events: none;
+
+  width: 90%;
+
+  max-width: 340px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  gap: 8px;
+
+}
+
+  /* 按鈕懸浮效果 */
+
+  .prep-header button:hover, .tip-card button:hover {
+
+    transform: translateY(-2px);
+
+    filter: brightness(1.1);
+
+  }
+
+  .prep-header button:active, .tip-card button:active {
+
+    transform: translateY(2px);
+
+    box-shadow: 0 2px 0 var(--gold-dk) !important;
+
+  }
+
+.toast-msg {
+
+  background: linear-gradient(135deg, var(--leather) 0%, var(--smoke) 100%);
+
+  color: var(--gold-lt);
+
+  border: 1.5px solid var(--gold-dk);
+
+  padding: 14px 20px;
+
+  border-radius: var(--r-xl);
+
+  font-size: 0.85rem;
+
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 2px 0 rgba(201,148,58,0.2) inset;
+
+  font-family: 'Noto Serif TC', serif;
+
+  text-align: center;
+
+  line-height: 1.6;
+
+  word-break: break-word;
+
+  white-space: normal;
+
+  max-width: 100%;
+
+  width: fit-content;
+
+  min-width: 200px;
+
+  animation: toastFade 3.5s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+
+  letter-spacing: 0.3px;
+
+}
+
+
+
+/* 特別長的訊息靠左對齊 */
+
+.toast-msg.long-msg {
+
+  text-align: left;
+
+}
+
+
+
+@keyframes toastFade {
+
+  0% { 
+
+    opacity: 0; 
+
+    transform: translateY(-20px) scale(0.9);
+
+  }
+
+  10% { 
+
+    opacity: 1; 
+
+    transform: translateY(0) scale(1);
+
+  }
+
+  85% { 
+
+    opacity: 1; 
+
+    transform: translateY(0) scale(1);
+
+  }
+
+  100% { 
+
+    opacity: 0; 
+
+    transform: translateY(-20px) scale(0.9);
+
+  }
+
+}
+
+
+
+@keyframes toastFade {
+
+  0% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+
+  10% { opacity: 1; transform: translateY(0) scale(1); }
+
+  85% { opacity: 1; transform: translateY(0) scale(1); }
+
+  100% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+
+}
+
+@keyframes shake {
+
+  0%, 100% { transform: translateX(0); }
+
+  20% { transform: translateX(-5px); }
+
+  40% { transform: translateX(5px); }
+
+  60% { transform: translateX(-3px); }
+
+  80% { transform: translateX(3px); }
+
+}
+
+
+
+
+
+/* ══════════════════════════════════════════
+
+   手機版戰前準備室優化（無警告版）
+
+══════════════════════════════════════════ */
+
+
+
+/* 確保整個螢幕不會自己滾動 */
+
+#lobbyScreen {
+
+  position: fixed;
+
+  top: 0;
+
+  left: 0;
+
+  right: 0;
+
+  bottom: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  overflow: hidden;
+
+  background: var(--ink);
+
+}
+
+
+
+/* 手機版滾動條美化 */
+
+#lobbyAccGrid::-webkit-scrollbar {
+
+  width: 3px;
+
+}
+
+
+
+#lobbyAccGrid::-webkit-scrollbar-track {
+
+  background: rgba(0,0,0,0.2);
+
+  border-radius: 1.5px;
+
+}
+
+
+
+#lobbyAccGrid::-webkit-scrollbar-thumb {
+
+  background: var(--gold-dk);
+
+  border-radius: 1.5px;
+
+}
+
+
+
+/* 手機版卡片尺寸調整 */
+
+@media (max-width: 480px) {
+
+  #lobbyAccGrid .acc-card {
+
+    min-height: 90px !important;
+
+    padding: 0.5rem !important;
+
+  }
+
+  
+
+  #lobbyAccGrid .acc-icon-wrap {
+
+    width: 32px !important;
+
+    height: 32px !important;
+
+    font-size: 1.2rem !important;
+
+  }
+
+  
+
+  #lobbyAccGrid .acc-name {
+
+    font-size: 0.65rem !important;
+
+  }
+
+  
+
+  #lobbyAccGrid .acc-type-badge {
+
+    font-size: 0.4rem !important;
+
+    padding: 0.05rem 0.25rem !important;
+
+  }
+
+  
+
+  /* ⚡ 修正 line-clamp 警告 */
+
+  #lobbyAccGrid .acc-desc {
+
+    font-size: 0.55rem !important;
+
+    line-height: 1.3 !important;
+
+    display: -webkit-box;
+
+    -webkit-line-clamp: 2;        /* 支援 Safari/iOS */
+
+    line-clamp: 2;                 /* 標準屬性（未來支援） */
+
+    -webkit-box-orient: vertical;
+
+    box-orient: vertical;          /* 標準屬性 */
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    max-height: 2.6em;             /* 備用方案：2行 * line-height */
+
+  }
+
+  
+
+  #lobbyAccGrid .rarity-star-v2 {
+
+    font-size: 0.45rem !important;
+
+  }
+
+  
+
+  /* 準備狀態徽章優化 */
+
+  #myReadyBadge, #enemyReadyBadge {
+
+    font-size: 0.45rem !important;
+
+    padding: 0.1rem 0.4rem !important;
+
+  }
+
+}
+
+
+
+/* 非常小的螢幕（如 iPhone SE） */
+
+@media (max-width: 375px) {
+
+  #lobbyAccGrid {
+
+    grid-template-columns: 1fr !important;
+
+    gap: 0.4rem !important;
+
+  }
+
+  
+
+  #lobbyAccGrid .acc-card {
+
+    min-height: 80px !important;
+
+  }
+
+}
+
+
+
+/* ══════════════════════════════════════════
+
+   BATTLE SCREEN (styles unchanged)
+
+══════════════════════════════════════════ */
+
+#battleScreen{overflow:hidden}
+
+.practice-banner{
+
+  display:flex;align-items:center;justify-content:center;gap:.4rem;
+
+  background:rgba(30,58,90,.35);border-bottom:1px solid rgba(74,138,176,.2);padding:.25rem .5rem;
+
+  font-family:'IM Fell English',serif;font-style:italic;font-size:.65rem;color:var(--rune-lt);flex-shrink:0;
+
+}
+
+.battle-header{
+
+  flex-shrink:0;background:linear-gradient(180deg,var(--leather) 0%,var(--smoke) 100%);
+
+  border-bottom:1px solid var(--gold-dk);padding:.55rem 1rem;
+
+  display:flex;align-items:center;justify-content:space-between;
+
+}
+
+.bh-title{font-family:'Uncial Antiqua',cursive;font-size:.8rem;color:var(--gold-lt)}
+
+.bh-turn{
+
+  font-family:'IM Fell English',serif;font-size:.7rem;padding:.2rem .55rem;border-radius:2px;
+
+  background:var(--wax);color:#e88080;animation:turnPulse 1.5s ease-in-out infinite alternate;
+
+}
+
+@keyframes turnPulse{from{box-shadow:0 0 0 var(--wax)}to{box-shadow:0 0 8px rgba(192,57,43,.5)}}
+
+.btn-sm{
+
+  padding:.3rem .65rem;border-radius:var(--r);background:transparent;border:1px solid var(--leather-lt);
+
+  color:var(--parch-dim);font-size:.65rem;cursor:pointer;font-family:'IM Fell English',serif;transition:all .2s;
+
+}
+
+.btn-sm:hover{border-color:var(--gold-dk);color:var(--parch)}
+
+.hp-zone{
+
+  flex-shrink:0;padding:.5rem 1rem;background:var(--smoke);border-bottom:1px solid rgba(201,148,58,.1);
+
+  display:flex;gap:.6rem;align-items:center;
+
+}
+
+.hp-block{flex:1;text-align:center}
+
+.hp-block-lbl{font-family:'IM Fell English',serif;font-style:italic;font-size:.6rem;color:var(--parch-dim);margin-bottom:.2rem}
+
+.hearts-row{display:flex;gap:.2rem;justify-content:center;flex-wrap:wrap}
+
+.h-heart{font-size:1.05rem;transition:all .35s;display:inline-block}
+
+.h-heart.empty{opacity:.18;filter:grayscale(1)}
+
+.h-heart.drain{animation:hDrain .45s ease-out}
+
+@keyframes hDrain{0%{transform:scale(1.4);filter:brightness(2)}100%{transform:scale(1)}}
+
+.vs-sep{color:var(--gold-dk);font-family:'Uncial Antiqua',cursive;font-size:.8rem}
+
+.card-zone{flex-shrink:0;padding:.5rem 1rem;display:flex;gap:.55rem}
+
+.card-wrap{flex:1}
+
+.card-lbl{font-family:'IM Fell English',serif;font-style:italic;font-size:.6rem;color:var(--parch-dim);margin-bottom:.25rem}
+
+.action-card{
+
+  background:var(--smoke-lt);border:1.5px solid var(--leather-lt);border-radius:var(--r-lg);
+
+  padding:.55rem .65rem;position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s;min-height:74px;
+
+}
+
+.action-card.ready{border-color:var(--gold);animation:cardGlow 1.4s ease-in-out infinite alternate}
+
+@keyframes cardGlow{from{box-shadow:0 0 6px rgba(201,148,58,.3)}to{box-shadow:0 0 22px rgba(201,148,58,.7),0 0 40px rgba(201,148,58,.2)}}
+
+.action-card.droptarget{border-color:var(--ember);box-shadow:0 0 14px rgba(200,98,42,.5)}
+
+.card-face{
+
+  position:absolute;top:.35rem;right:.45rem;font-size:.5rem;padding:.12rem .38rem;
+
+  border-radius:2px;font-family:'IM Fell English',serif;
+
+}
+
+.face-A{background:rgba(30,58,90,.7);color:var(--rune-lt)}
+
+.face-B{background:rgba(139,28,28,.7);color:#e88080}
+
+.card-pts{font-family:'Uncial Antiqua',cursive;font-size:1.5rem;color:var(--parch);line-height:1}
+
+.card-max{font-size:.6rem;color:var(--parch-dim);font-family:'IM Fell English',serif}
+
+.pbar-wrap{height:5px;background:rgba(201,148,58,.12);border-radius:3px;margin:.35rem 0 .3rem;overflow:hidden}
+
+.pbar{height:100%;border-radius:3px;transition:width .4s;background:linear-gradient(90deg,var(--gold-dk),var(--gold))}
+
+.card-actions{display:flex;gap:.35rem;margin-top:.25rem}
+
+.cact-btn{
+
+  flex:1;padding:.28rem;border-radius:4px;border:1px solid;font-size:.6rem;cursor:pointer;
+
+  transition:all .2s;font-family:'IM Fell English',serif;
+
+}
+
+.cact-atk{border-color:var(--wax-lt);color:var(--wax-lt);background:rgba(139,28,28,.15)}
+
+.cact-atk:hover{background:rgba(139,28,28,.3)}
+
+.cact-heal{border-color:var(--jade-lt);color:var(--jade-lt);background:rgba(26,74,56,.15)}
+
+.cact-heal:hover{background:rgba(26,74,56,.3)}
+
+.cact-btn:disabled{opacity:.28;cursor:not-allowed}
+
+.acc-bar-lbl{
+
+  flex-shrink:0;font-family:'IM Fell English',serif;font-style:italic;
+
+  font-size:.6rem;color:var(--parch-dim);padding:0 1rem .2rem;
+
+}
+
+
+
+
+
+.acc-bar::-webkit-scrollbar{display:none}
+
+
+
+.acc-arena {
+
+  display: flex;
+
+  gap: 0.5rem;
+
+  padding: 0 1rem 0.45rem;
+
+  flex-shrink: 0;
+
+  max-width: 480px;
+
+  margin: 0 auto;
+
+  width: 100%;
+
+}
+
+/* ══════ 配件競技場佈局 ══════ */
+
+.acc-arena-lbl {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  padding: 0 1.2rem 0.2rem;
+
+  max-width: 480px;
+
+  margin: 0.5rem auto 0;
+
+  font-family: 'IM Fell English', serif;
+
+  font-style: italic;
+
+  font-size: 0.65rem;
+
+  color: var(--gold-dk);
+
+  letter-spacing: 0.05em;
+
+}
+
+.acc-arena {
+
+  display: flex;
+
+  gap: 0.6rem;
+
+  padding: 0 1rem 0.6rem;
+
+  flex-shrink: 0;
+
+  max-width: 480px;
+
+  margin: 0 auto;
+
+  width: 100%;
+
+}
+
+.acc-bar {
+
+  flex: 1;
+
+  display: grid;
+
+  grid-template-columns: repeat(2, 1fr);
+
+  gap: 0.45rem;
+
+}
+
+.acc-bar-sep {
+
+  width: 1px;
+
+  background: linear-gradient(180deg, transparent, var(--gold-dk), transparent);
+
+  opacity: 0.25;
+
+}
+
+
+
+/* ══════ 配件晶片 (找回原本的特效) ══════ */
+
+.acc-chip {
+
+  background: var(--smoke-lt);
+
+  border: 1px solid var(--leather-lt);
+
+  border-radius: var(--r-lg);
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  cursor: pointer;
+
+  transition: all .2s;
+
+  position: relative;
+
+  /* ⚡ 修正：縮小上下內距，騰出垂直空間 */
+
+  padding: .2rem .1rem; 
+
+  /* ⚡ 修正：65px 是目前最能維持原本「方塊感」的高度 */
+
+  min-height: 65px; 
+
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.3); /* 增加一點點深度 */
+
+}
+
+
+
+/* 保持你原本的特效 */
+
+.acc-chip.droptarget {
+
+  border-color: var(--ember) !important;
+
+  box-shadow: 0 0 14px rgba(200, 98, 42, 0.6) !important;
+
+  transform: scale(1.05);
+
+  z-index: 10;
+
+}
+
+
+
+.acc-chip.storing {
+
+  border-color: var(--gold-lt);
+
+  box-shadow: 0 0 15px rgba(201, 148, 58, 0.4);
+
+  animation: storingGlow 2s ease-in-out infinite;
+
+}
+
+
+
+/* ⚡ 修正：稍微縮小圖示，讓它在 65px 下不顯得擁擠 */
+
+.chip-ico { 
+
+  font-size: 1.3rem; 
+
+  margin-bottom: 1px; 
+
+}
+
+
+
+/* ⚡ 修正：稍微加大字體，因為原本的 .48rem 在 65px 下會顯得太小而模糊 */
+
+.chip-nm {
+
+  font-size: .52rem; 
+
+  color: var(--gold);
+
+  font-family: 'Uncial Antiqua', cursive;
+
+  text-align: center;
+
+  line-height: 1.1;
+
+  padding: 0 2px;
+
+}
+
+
+
+.chip-passive {
+
+  position: absolute;
+
+  top: 2px;
+
+  right: 2px;
+
+  font-size: .35rem;
+
+  background: rgba(30, 58, 90, 0.8);
+
+  color: var(--rune-lt);
+
+  padding: 1px 3px;
+
+  border-radius: 2px;
+
+}
+
+.acc-chip.exhausted { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
+
+.battle-log{
+
+  flex-shrink:0;height:46px;overflow-y:auto;padding:.25rem .8rem;
+
+  background:rgba(0,0,0,.35);border-top:1px solid rgba(201,148,58,.08);scrollbar-width:none;
+
+}
+
+.battle-log::-webkit-scrollbar{display:none}
+
+.log-line{font-family:'IM Fell English',serif;font-size:.68rem;line-height:1.6;padding:.05rem 0}
+
+.log-player{color:var(--gold-lt)}
+
+.log-system{color:var(--parch-dim);font-style:italic}
+
+.log-good{color:#80e0a0}
+
+.log-bad{color:#e08080}
+
+.dice-zone {
+
+  flex: 1;
+
+  display: flex;
+
+  flex-direction: column;
+
+  padding: 0.2rem 1rem 90px; /* 墊高 90px 避開底部按鈕列 */
+
+  min-height: 110px;
+
+  justify-content: center;
+
+  position: relative; /* ⚡ 關鍵：作為定位基準 */
+
+}
+
+
+
+.dice-lbl {
+
+  position: absolute;
+
+  right: 12px;        /* 稍微往左移一點點，更有呼吸感 */
+
+  bottom: 75px;       /* 貼近底部按鈕列上方 */
+
+  font-family: 'IM Fell English', serif;
+
+  font-style: italic;
+
+  font-size: 0.58rem; /* 稍微放大一點點增加可讀性 */
+
+  color: var(--parch-dim); /* ⚡ 改用較亮的羊皮紙色 */
+
+  pointer-events: none;
+
+  opacity: 0.85;      /* ⚡ 提高不透明度，讓字更亮 */
+
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.8); /* 加入微弱陰影，確保在任何背景都能看清 */
+
+}
+
+.dice-tray {
+
+  display: flex;
+
+  gap: 0.7rem;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding-top: 5px; /* ⚡ 減少頂部間距 */
+
+  flex-wrap: wrap; 
+
+}
+
+.die{
+
+  width:66px;height:66px;background:var(--parch);border-radius:12px;border:2px solid var(--gold-dk);
+
+  display:flex;align-items:center;justify-content:center;font-size:2.1rem;
+
+  cursor:grab;transition:transform .15s,opacity .2s,box-shadow .2s;
+
+  box-shadow:3px 3px 0 rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.4);
+
+  color:var(--ink);user-select:none;touch-action:none;position:relative;
+
+}
+
+.die:not(.used):hover{transform:translateY(-3px);box-shadow:3px 6px 0 rgba(0,0,0,.6),0 0 12px rgba(200,98,42,.3)}
+
+.die.used{opacity:.22;cursor:not-allowed;transform:none}
+
+.die.rolling{animation:dieRoll .55s ease-out}
+
+@keyframes dieRoll{
+
+  0%{transform:rotate(0deg) scale(1)}20%{transform:rotate(90deg) scale(.8)}
+
+  50%{transform:rotate(200deg) scale(1.15)}80%{transform:rotate(320deg) scale(.9)}100%{transform:rotate(360deg) scale(1)}
+
+}
+
+.die-val{position:absolute;bottom:2px;right:4px;font-size:.45rem;color:rgba(0,0,0,.4);font-family:'IM Fell English',serif}
+
+.battle-ctrl {
+
+  position: fixed; /* ⚡ 關鍵：固定在螢幕底部，不再被內容推走 */
+
+  bottom: 0;
+
+  left: 0;
+
+  right: 0;
+
+  flex-shrink: 0;
+
+  display: flex;
+
+  gap: 0.5rem;
+
+  padding: 0.8rem 1rem calc(0.8rem + env(safe-area-inset-bottom)); /* 避開手機底線 */
+
+  background: linear-gradient(0deg, var(--ink) 80%, transparent 100%);
+
+  border-top: 1px solid rgba(201, 148, 58, 0.2);
+
+  z-index: 100; /* 確保在最上層 */
+
+}
+
+.die.locked {
+
+  cursor: not-allowed;
+
+  opacity: 0.5;
+
+  filter: grayscale(0.8);
+
+  box-shadow: none;
+
+  transform: none !important;
+
+  pointer-events: none; /* 徹底從瀏覽器層級禁止滑鼠事件 */
+
+}
+
+.btn-roll-b{
+
+  flex:1;padding:.75rem;font-family:'Uncial Antiqua',cursive;font-size:.75rem;letter-spacing:.05em;
+
+  color:var(--ink);background:linear-gradient(135deg,var(--gold-dk) 0%,var(--gold) 100%);
+
+  border:none;border-radius:var(--r);cursor:pointer;box-shadow:0 3px 12px rgba(201,148,58,.35);transition:all .2s;
+
+}
+
+.btn-roll-b:disabled{opacity:.35;cursor:not-allowed}
+
+.btn-roll-b:active{transform:scale(.96)}
+
+.btn-end-b {
+
+  padding: .75rem .9rem;
+
+  background: transparent;
+
+  border: 1.5px solid var(--leather-lt);
+
+  border-radius: var(--r);
+
+  color: var(--parch-dim);
+
+  font-size: .72rem;
+
+  cursor: pointer;
+
+  font-family: 'IM Fell English', serif;
+
+  transition: all .2s;
+
+  opacity: 1; /* 預設不透明 */
+
+}
+
+
+
+.btn-end-b:hover:not(:disabled) {
+
+  border-color: var(--gold-lt);
+
+  color: var(--parch);
+
+  box-shadow: 0 0 10px rgba(201, 148, 58, 0.2);
+
+}
+
+
+
+/* 這是關鍵：當按鈕被禁用的時候，才變灰變半透明 */
+
+.btn-end-b:disabled {
+
+  opacity: 0.3 !important;
+
+  cursor: not-allowed;
+
+  filter: grayscale(1);
+
+  border-color: var(--leather-lt) !important;
+
+}
+
+.phase-row{flex-shrink:0;display:flex;gap:.3rem;justify-content:center;padding:.3rem}
+
+.phase-pill{
+
+  padding:.15rem .55rem;border-radius:8px;font-size:.52rem;
+
+  font-family:'IM Fell English',serif;letter-spacing:.05em;transition:all .3s;
+
+}
+
+.pp-active{background:var(--gold);color:var(--ink)}
+
+.pp-done{background:rgba(201,148,58,.18);color:var(--gold-dk)}
+
+.pp-inactive{background:var(--smoke-lt);color:var(--leather-lt)}
+
+.float-text{
+
+  position:fixed;pointer-events:none;z-index:400;font-family:'Uncial Antiqua',cursive;
+
+  font-size:1.4rem;font-weight:900;animation:floatUp 1.1s ease-out forwards;white-space:nowrap;
+
+}
+
+@keyframes floatUp{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-70px);opacity:0}}
+
+.ft-dmg{color:#ff5050;text-shadow:0 0 10px #ff0000}
+
+.ft-heal{color:#50ff90;text-shadow:0 0 10px #00ff50}
+
+.ft-pts{color:var(--gold-lt);text-shadow:0 0 8px rgba(201,148,58,.8)}
+
+.ft-spec{color:#a080ff;text-shadow:0 0 10px #8040ff}
+
+#dragGhost{
+
+  position:fixed;z-index:500;pointer-events:none;
+
+  width:66px;height:66px; /* 寬度高度與原本骰子一致 */
+
+  background:var(--parch);
+
+  border-radius:12px;border:2px solid var(--gold);
+
+  display:flex;align-items:center;justify-content:center;
+
+  font-size:2.1rem; /* 骰子圖案大小 */
+
+  box-shadow:0 8px 24px rgba(0,0,0,.6);
+
+  opacity:0;transition:opacity .1s;
+
+  color:var(--ink);
+
+}
+
+#dragGhost.active{opacity:1}
+
+
+
+.tab-btn {
+
+  background: transparent;
+
+  border: none;
+
+  color: var(--parch-dim);
+
+  font-family: 'Noto Serif TC', serif;
+
+  font-size: 0.75rem;
+
+  cursor: pointer;
+
+  transition: all 0.3s;
+
+  display: flex;
+
+  flex-direction: column;
+
+  /* ⚡ 修正：確保內容垂直水平置中 */
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 4px;
+
+  flex: 1; /* 讓三個按鈕平分底部寬度 */
+
+}
+
+.tab-btn.active {
+
+  color: var(--gold-lt);
+
+  background: rgba(201,148,58,0.1);
+
+  box-shadow: inset 0 4px 0 var(--gold-lt);
+
+}
+
+.shop-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; padding: 0.5rem; }
+
+.shop-item {
+
+  background: var(--smoke-lt); border: 2px solid var(--gold-dk); border-radius: var(--r-lg);
+
+  padding: 1rem; display: flex; align-items: center; gap: 1rem;
+
+}
+
+.shop-info { flex: 1; }
+
+.btn-buy {
+
+  background: var(--wax); color: white; border: none; padding: 0.5rem 1rem;
+
+  border-radius: var(--r); cursor: pointer; font-family: 'MedievalSharp';
+
+}
+
+.btn-buy:disabled { background: #555; opacity: 0.5; }
+
+
+
+/* ══════════════════════════════════════════
+
+   VICTORY SCREEN
+
+══════════════════════════════════════════ */
+
+#victoryScreen{align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#1a1008 0%,#0c0a08 100%)}
+
+.vic-box{text-align:center;padding:2rem}
+
+.vic-icon{font-size:5rem;animation:vicBounce .7s cubic-bezier(.36,.07,.19,.97)}
+
+@keyframes vicBounce{0%{transform:scale(0) rotate(-15deg)}70%{transform:scale(1.15) rotate(3deg)}100%{transform:scale(1) rotate(0)}}
+
+.vic-title{font-family:'Uncial Antiqua',cursive;font-size:2rem;color:var(--gold-lt);margin:.8rem 0 .3rem;text-shadow:0 0 30px rgba(200,98,42,.7)}
+
+.vic-sub{font-family:'IM Fell English',serif;font-style:italic;font-size:1rem;color:var(--parch-dim)}
+
+.vic-reason{font-family:'IM Fell English',serif;font-size:.9rem;color:var(--ember);margin:.5rem 0 1.5rem}
+
+.vic-stats{
+
+  display:grid;grid-template-columns:1fr 1fr;gap:.5rem;
+
+  background:var(--smoke-lt);border:1px solid var(--gold-dk);border-radius:var(--r-lg);
+
+  padding:.8rem;margin:0 auto 1.2rem;max-width:280px;
+
+}
+
+.stat-item{text-align:center}
+
+.stat-n{font-family:'Uncial Antiqua',cursive;font-size:1.3rem;color:var(--gold-lt)}
+
+.stat-l{font-family:'IM Fell English',serif;font-style:italic;font-size:.65rem;color:var(--parch-dim)}
+
+
+
+/* ══════════════════════════════════════════
+
+   TOOLTIP
+
+══════════════════════════════════════════ */
+
+.tip-overlay{
+
+  position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.75);
+
+  display:flex;align-items:flex-end;justify-content:center;transition:opacity .25s;
+
+}
+
+.tip-overlay.out{opacity:0;pointer-events:none}
+
+.tip-card{
+
+  width:100%;max-width:480px;background:var(--leather);border:2px solid var(--gold-dk);
+
+  border-radius:var(--r-xl) var(--r-xl) 0 0;padding:1.2rem 1.5rem 2.2rem;
+
+  transform:translateY(0);transition:transform .3s;
+
+}
+
+.tip-overlay.out .tip-card{transform:translateY(100%)}
+
+.tip-ico{font-size:2.8rem;text-align:center;margin-bottom:.4rem}
+
+.tip-nm{font-family:'Uncial Antiqua',cursive;font-size:1.1rem;color:var(--gold-lt);text-align:center}
+
+.tip-req{font-family:'IM Fell English',serif;font-style:italic;font-size:.8rem;color:var(--ember);text-align:center;margin:.25rem 0 .7rem}
+
+.tip-body{font-family:'IM Fell English',serif;font-size:.95rem;color:var(--parch);line-height:1.65}
+
+.tip-close{
+
+  display:block;width:100%;margin-top:1rem;padding:.6rem;background:transparent;
+
+  border:1px solid var(--leather-lt);border-radius:var(--r);color:var(--parch-dim);cursor:pointer;
+
+  font-family:'IM Fell English',serif;font-size:.9rem;transition:all .2s;
+
+}
+
+.tip-close:hover{border-color:var(--gold-dk);color:var(--parch)}
+
+
+
+  /* 配件格子的響應式設計 */
+
+  #myLobbySlots div, #enemyLobbySlots div {
+
+    width: clamp(28px, 8vw, 35px) !important;
+
+    height: clamp(36px, 10vw, 45px) !important;
+
+    font-size: clamp(1rem, 4vw, 1.2rem) !important;
+
+  }
+
+  
+
+  /* 手機版特別優化 */
+
+  @media (max-width: 480px) {
+
+    #myLobbySlots, #enemyLobbySlots {
+
+      gap: 1px !important;
+
+    }
+
+  }
+
+
+
+
+
+/* ⚡ 裝備中卡片：呼吸燈與懸浮對接版本 */
+
+.acc-card.equipped {
+
+  border-color: var(--gold) !important;
+
+  border-width: 3px !important;
+
+  background: linear-gradient(145deg, #4a3a28 0%, #3a2e20 100%) !important;
+
+  box-shadow: 0 4px 0 var(--gold), 0 0 25px rgba(201, 148, 58, 0.6) !important;
+
+  animation: equippedGlow 2s ease-in-out infinite alternate !important;
+
+  z-index: 5;
+
+  transition: transform 0.2s ease;
+
+}
+
+
+
+.acc-card.equipped:hover {
+
+  transform: translateY(-5px) scale(1.02);
+
+  box-shadow: 0 8px 0 var(--gold-dk), 0 15px 35px rgba(201, 148, 58, 0.8) !important;
+
+}
+
+
+
+@keyframes equippedGlow {
+
+  0% { box-shadow: 0 4px 0 var(--gold), 0 0 10px rgba(201, 148, 58, 0.4); }
+
+  100% { box-shadow: 0 4px 0 var(--gold), 0 0 25px rgba(201, 148, 58, 0.7); }
+
+}
+
+
+
+/* 裝備中圖示與勾勾 */
+
+.acc-card.equipped .acc-icon-wrap {
+
+  border-color: var(--gold);
+
+  box-shadow: 0 0 12px rgba(201,148,58,0.5);
+
+}
+
+.acc-card.equipped .equipped-tick {
+
+  opacity: 1 !important;
+
+}
+
