@@ -205,8 +205,7 @@ const ACCESSORIES = [
     }
     }
   },
-
- {
+{
     id: 'infinite',
     name: '無限翻轉',
     icon: '🔄',
@@ -216,19 +215,28 @@ const ACCESSORIES = [
     desc: '當你的行動卡翻轉次數達到 10 次時，直接獲得勝利！',
     
    on: {
-  playerFlip: (gs, actor, flipCount) => {
-    if (flipCount >= 10) {
-      // ⚡ 必加同步：正式向雲端宣告遊戲結束
-      if (actor === 'player' && isOnlineMode()) {
-     syncBattle({ status: 'game-over',
-      winner: myRole,
-      reason: 'flip', // ⚡ 加這行
-      timestamp: Date.now() });
-     }
-      endBattle('flip');
+    playerFlip: (gs, target, flipCount) => {
+      // target 是卡片的擁有者
+      if (flipCount >= 10) {
+        // ⚡ 修正：只要是「我的卡」達到 10 次，不論是誰翻的，都由我來宣告勝利
+        if (target === 'player') {
+          if (isOnlineMode()) {
+            syncBattle({ 
+              status: 'game-over',
+              winner: myRole, // 我是這張卡的主人，我贏了
+              reason: 'flip',
+              timestamp: Date.now() 
+            });
+          }
+          endBattle('flip'); // 本地立即結算
+        } else {
+          // 如果是對手的卡達到 10 次，我們不需要發同步（由他自己發），我們只在本地等結算
+          // 或是保險起見也呼叫 endBattle
+          console.log("🔄 對手達成無限翻轉，等待結算同步...");
+        }
+      }
     }
   }
-}
 },
   
 
@@ -399,28 +407,37 @@ if (isOnlineMode()) {
         }
     },
     
-   effect: (gs, who, dropIdx) => {
+effect: (gs, who, dropIdx) => {
         // 1. 取得當前輪數
         const rounds = (who === 'player') ? gs.medalRounds : gs.enemyMedalRounds;
         
-       // 2. 判斷是否集齊兩輪
+        // 2. 判斷是否集齊兩輪
         if (rounds >= 2) {
             const label = (who === 'player') ? '你' : '對手';
             const logColor = (who === 'player') ? 'good' : 'bad';
-            log(`🏅 ${label} 的獎章光芒萬丈！贏得勝利！`, logColor);
+            if (window.log) window.log(`🏅 ${label} 的獎章光芒萬丈！贏得勝利！`, logColor);
 
-            // ⚡ 核心修正：如果是你贏了，統一發送遊戲結束指令
+            // ⚡ 核心修正：只有「達成者」發送最後的制勝同步
             if (who === 'player' && typeof isOnlineMode === 'function' && isOnlineMode()) {
-                syncBattle({ 
+                window.syncBattle({ 
+                    // 關鍵：同步最後的輪數與血量，讓對手死得明白
+                    hp: gs.hp,
+                    dummyHp: gs.dummyHp,
+                    medalRounds: gs.medalRounds, 
                     status: 'game-over', 
                     winner: myRole, 
-                    reason: 'medal', // ⚡ 加這行
+                    reason: 'medal', 
                     timestamp: Date.now() 
                 });
-            
-                // 本地執行結束動畫
-                setTimeout(() => endBattle('dummy'), 1000);
             }
+            
+            // 本地執行結束動畫
+            setTimeout(() => {
+                if (typeof endBattle === 'function') {
+                    // 如果是你達成，叫 dummy 贏；如果是對手達成，叫 lose
+                    endBattle(who === 'player' ? 'dummy' : 'medal-loss');
+                }
+            }, 1000);
         }
     }
 },
@@ -433,35 +450,9 @@ if (isOnlineMode()) {
     req: '受到傷害時',
     desc: '每受到 1 點傷害，偷取對手 6 點行動卡點數。',
     on: {
-        playerTakeDamage: (gs, victim, dmg) => {  
-            if (victim === 'player') {
-                // 我受傷，偷對手的點數
-                const stealAmount = dmg * 6;
-                const available = gs.enemyPts || 0;
-                const stolen = Math.min(stealAmount, available);
-                
-                if (stolen > 0) {
-                    gs.enemyPts = Math.max(0, (gs.enemyPts || 0) - stolen);
-                    gs.pts = (gs.pts || 0) + stolen;
-                    // ⚡ 必加同步
-                    if (isOnlineMode()) syncBattle({ pts: gs.pts, enemyPts: gs.enemyPts });
-                    log(`🛡️ 荊棘反甲：從對手偷了 ${stolen} 點！`, 'good');
-
-                }
-            } else {
-                // 對手受傷，他的電腦會跑這一段並同步給我，所以我這邊只需要負責更新本地日誌
-                const stealAmount = dmg * 6;
-                const available = gs.pts || 0;
-                const stolen = Math.min(stealAmount, available);
-                
-                if (stolen > 0) {
-                    gs.pts = Math.max(0, (gs.pts || 0) - stolen);
-                    gs.enemyPts = (gs.enemyPts || 0) + stolen;
-                    log(`🛡️ 對手反甲：偷了你的 ${stolen} 點！`, 'bad');
-                    // 這裡不需要 syncBattle，因為對方受傷會由對方的電腦發起同步
-                }
-            }
-        }
+      playerTakeDamage: (gs, victim, dmg) => {  
+        window.FX.stealPts(gs, victim, dmg * 6, "🛡️ 荊棘反甲");
+}
     }
 },
  {
@@ -474,30 +465,13 @@ if (isOnlineMode()) {
     desc: '消耗一顆骰子，指定對手下回合第一顆骰子必為該點數。(每回合限一次)',
     trigger: { type: 'consume', faces: [1,2,3,4,5,6], count: 1, check: (gs) => !gs.usedAccs?.includes('fate') },
     effect: (gs, who, dropIdx) => {
-      let val;
-      if (dropIdx !== undefined && gs.dice[dropIdx]) {
-        val = gs.dice[dropIdx].v;
-      } else {
-        // ⚡ 核心修正：如果 dropIdx 無效（代表是接收對手訊息），從同步訊息中抓點數
-        val = (gs.lastAction && gs.lastAction.val) ? gs.lastAction.val : 1;
-      }
-      if(!gs.usedAccs) gs.usedAccs = [];
-       gs.usedAccs.push('fate');
+    let val = (dropIdx !== undefined && gs.dice[dropIdx]) ? gs.dice[dropIdx].v : 1;
+    if (!gs.usedAccs) gs.usedAccs = [];
+    gs.usedAccs.push('fate');
 
-      // 簡化判定與文字
-      if (who === 'player') {
-        gs.enemyNextDie = val;
-        // ⚡ 必加！告訴雲端，對手的下顆骰子被你鎖定了
-    if (isOnlineMode()) {
-      syncBattle({ enemyNextDie: val }); 
-    }
-        log(`🎭 命運干擾：對手 下回合第一顆必出 ${FACES[val-1]}`, 'spec');
-      } else {
-        gs.playerNextDie = val;
-        log(`🎭 命運干擾：你 下回合第一顆必出 ${FACES[val-1]}`, 'spec');
-      }
-      log('🎭 命運干擾本回合已進入冷卻', 'system');
-    }
+    // 呼叫新家的 setFate，由它負責同步 enemyNextDie
+    window.FX.setFate(gs, (who === 'player' ? 'enemy' : 'player'), val);
+}
   },
   {
     id: 'knife',

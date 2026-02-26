@@ -6,40 +6,69 @@ window.rand = function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a};
 
 window.FX = {
   // 點數操作
- addPts: (gs, who, n) => {
+// ⚡ 點數操作：加入身分檢查與自動同步
+  addPts: (gs, who, n, label) => {
     const val = parseInt(n) || 0;
-    if(who==='player') {
-      gs.pts = (gs.pts || 0) + val; 
-      floatAt(`+${val}`, document.getElementById('myCard'), 'pts');
+    if (who === 'player') {
+      gs.pts = (gs.pts || 0) + val;
+      if (window.floatAt) window.floatAt(`+${val}`, document.getElementById('myCard'), 'pts');
     } else {
       gs.enemyPts = (gs.enemyPts || 0) + val;
-      // ⚡ 改用更穩定的選擇器抓取對手卡片
       const enemyCardWrap = document.querySelector('.card-wrap:last-child .action-card');
-      if(enemyCardWrap) floatAt(`+${val}`, enemyCardWrap, 'pts');
+      if (enemyCardWrap && window.floatAt) window.floatAt(`+${val}`, enemyCardWrap, 'pts');
     }
-    renderCard(); // ⚡ 強制重新渲染確保數字立刻變動
+
+    // ⚡ 核心修正：只有「發起者」負責同步
+    if (window.isOnlineMode() && window.myRole === gs.currentTurnPlayer) {
+      window.syncBattle({ pts: gs.pts, enemyPts: gs.enemyPts });
+    }
+
+    if (label && window.log) window.log(label, who === 'player' ? 'good' : 'bad');
+    if (window.renderCard) window.renderCard();
   },
   
- stealPts: (gs, who, n, label = "奪取") => {
-  // 確保點數存在
+stealPts: (gs, who, n, label = "奪取") => {
+    // 1. 安全檢查與數值計算
     if (typeof gs.pts !== 'number' || isNaN(gs.pts)) gs.pts = 0;
     if (typeof gs.enemyPts !== 'number' || isNaN(gs.enemyPts)) gs.enemyPts = 0;
+    
     const from = who === 'player' ? 'enemy' : 'player';
     const currentFromPts = (from === 'player' ? gs.pts : gs.enemyPts);
     const stolen = Math.min(n, currentFromPts);
     
-    if (from === 'player') gs.pts -= stolen;
-    else gs.enemyPts -= stolen;
-    
-    if (who === 'player') gs.pts += stolen;
-    else gs.enemyPts += stolen;
-    
-    // 這裡不再寫死「反甲」，而是根據傳入的 label 說話
-    if (stolen > 0) {
-      log(`${label}：${who === 'player' ? '你' : '對手'} 奪取了 ${stolen} 點數！`, who === 'player' ? 'good' : 'bad');
-    } else {
-      log(`${label}：目標行動卡已空，未能奪取點數。`, 'system');
+    if (stolen <= 0) {
+      if (window.log) window.log(`${label}：目標能量已空，未能奪取。`, 'system');
+      return;
     }
+
+    // 2. 數據修改
+    if (from === 'player') gs.pts -= stolen; else gs.enemyPts -= stolen;
+    if (who === 'player') gs.pts += stolen; else gs.enemyPts += stolen;
+    
+    // 3. ⚡ 視覺與 Log 連動 (補回你最在意的部分)
+    // 這裡我們根據 who 是誰，決定 Log 的文字與顏色
+    const isMe = (who === 'player');
+    const logText = isMe 
+        ? `${label}：從對手偷了 ${stolen} 點！` 
+        : `${label}：偷了你的 ${stolen} 點！`;
+    const logType = isMe ? 'good' : 'bad';
+    
+    if (window.log) window.log(logText, logType);
+
+    // 4. 跳字特效
+    const myEl = document.getElementById('myCard');
+    const enemyEl = document.querySelector('.card-wrap:last-child .action-card');
+    if (window.floatAt) {
+      window.floatAt(`-${stolen}`, (from === 'player' ? myEl : enemyEl), 'pts');
+      window.floatAt(`+${stolen}`, (who === 'player' ? myEl : enemyEl), 'pts');
+    }
+
+    // 5. 聯網同步 (只有發起者端發送)
+    if (window.isOnlineMode && window.isOnlineMode() && window.myRole === gs.currentTurnPlayer) {
+      window.syncBattle({ pts: gs.pts, enemyPts: gs.enemyPts });
+    }
+    
+    if (window.renderBattle) window.renderBattle();
   },
   
   clearPts: (gs, who) => {
@@ -98,52 +127,53 @@ splitDie: (gs, targetDice, idx, who) => {
         }
     }, 550);
 },
-  
-damage: (gs, target, n, label = "攻擊") => {
-  // 1. 強制執行本地扣血：不管是誰的回合，只要這行跑了，螢幕上的血就要扣
-  if (target === 'enemy') {
-    gs.dummyHp = Math.max(0, gs.dummyHp - n);
-    const heartEl = document.getElementById('dummyHearts');
-    if(heartEl) floatAt(`-${n}💀`, heartEl, 'dmg');
-  } else {
-    gs.hp = Math.max(0, gs.hp - n);
-    const heartEl = document.getElementById('hpHearts');
-    if(heartEl) floatAt(`-${n}💀`, heartEl, 'dmg');
-  }
-  
-  // 顯示戰鬥日誌
-  log(`${label}：${target === 'enemy' ? '對手' : '你'} 受到 ${n} 點傷害！`, target === 'enemy' ? 'good' : 'bad');
-
-  // 2. 觸發受傷配件 (例如：反甲)
-  triggerEvent('playerTakeDamage', target, n);
-
-  // 3. 檢查死亡與復活 (例如：不死鳥羽毛)
-  const currentHp = (target === 'player') ? gs.hp : gs.dummyHp;
-  if (currentHp <= 0) {
-    let saved = false;
-    const loadoutToCheck = (target === 'player') ? gs.loadout : gs.enemyLoadout;
-    loadoutToCheck.forEach(id => {
-      const acc = ACCESSORIES.find(a => a.id === id);
-      if (acc?.on?.playerDeath && acc.on.playerDeath(gs, target)) {
-        saved = true;
-      }
-    });
-    // 如果復活了，就停止執行下方的勝負判定
-    if (saved) { renderBattle(); return; }
-  }
-
-  // 4. 勝負宣告：這段「只給發動攻擊的人」執行
-  // 理由：如果不加這個 if，兩台電腦會同時向 Firebase 發送 "我贏了"，會造成混亂
- if (roomId && myRole === gs.currentTurnPlayer) {
-    const finalOpponentHp = (target === 'enemy') ? gs.dummyHp : gs.hp;
-    if (finalOpponentHp <= 0) {
-        syncBattle({ status: 'game-over', winner: myRole, timestamp: Date.now() });
+  // ⚡ 傷害處理：保留不死鳥與特效，並修正聯網勝負判定
+  damage: (gs, target, n, label = "攻擊") => {
+    // 1. 本地扣血與跳字 (💀) - 保留你原本的邏輯
+    if (target === 'enemy') {
+      gs.dummyHp = Math.max(0, (gs.dummyHp || 0) - n);
+      const heartEl = document.getElementById('dummyHearts');
+      if (heartEl && window.floatAt) window.floatAt(`-${n}💀`, heartEl, 'dmg');
+    } else {
+      gs.hp = Math.max(0, (gs.hp || 0) - n);
+      const heartEl = document.getElementById('hpHearts');
+      if (heartEl && window.floatAt) window.floatAt(`-${n}💀`, heartEl, 'dmg');
     }
-}
+    
+    if (window.log) window.log(`${label}：${target === 'enemy' ? '對手' : '你'} 受到 ${n} 點傷害！`, target === 'enemy' ? 'good' : 'bad');
 
-  // 刷新畫面
-  renderBattle();
-},
+    // 2. 觸發受傷配件 (例如：反甲)
+    if (window.triggerEvent) window.triggerEvent('playerTakeDamage', target, n);
+
+    // 3. 檢查不死鳥復活 (保留你的攔截邏輯)
+    const currentHp = (target === 'player') ? gs.hp : gs.dummyHp;
+    if (currentHp <= 0) {
+      let saved = false;
+      const loadout = (target === 'player') ? gs.loadout : gs.enemyLoadout;
+      loadout?.forEach(id => {
+        const acc = window.ACCESSORIES?.find(a => a.id === id);
+        if (acc?.on?.playerDeath && acc.on.playerDeath(gs, target)) {
+          saved = true;
+        }
+      });
+      if (saved) {
+        if (window.isOnlineMode() && window.myRole === gs.currentTurnPlayer) {
+          window.syncBattle({ hp: gs.hp, dummyHp: gs.dummyHp, playerPhoenixUsed: gs.playerPhoenixUsed, enemyPhoenixUsed: gs.enemyPhoenixUsed });
+        }
+        window.renderBattle();
+        return; 
+      }
+    }
+
+    // ⚡ 修正：刪除原本那個錯誤的 winner 判定，只做血量數據同步
+    if (window.isOnlineMode() && window.myRole === gs.currentTurnPlayer) {
+        window.syncBattle({ hp: gs.hp, dummyHp: gs.dummyHp });
+    }
+
+    window.renderBattle();
+    // ⚡ 權力交還：呼叫你原本就有的 checkWin
+    if (window.checkWin) window.checkWin();
+  },
   
 heal: (gs, who, n, label = "治療") => {
     if(who === 'player') {
@@ -164,17 +194,28 @@ heal: (gs, who, n, label = "治療") => {
     log(`${who==='player'?'🎲':'🤖'} 下回合多 ${n} 顆骰子！`, who==='player'?'good':'bad');
   },
   
-rerollDie: (gs, dropIdx) => {
-    const targetDie = gs.dice[dropIdx];
+// ⚡ 鬧鐘專用：重新擲骰 (Reroll)
+  rerollDie: (gs, idx) => {
+    const targetDie = gs.dice[idx];
     if (targetDie) {
-      const v = rand(1, 6);
+      const v = window.rand(1, 6);
       targetDie.v = v;
-      targetDie.u = false;
-      
-      // 核心修正：觸發事件並標註來源為 'reroll'
-      triggerEvent('playerDieRolled', 'player', v, 'reroll');
-      
-      log(`⏰ 鬧鐘響起！點數重置為 ${FACES[v-1]}`, 'good');
+      targetDie.u = false; // 恢復彩色
+      targetDie.rolling = true; 
+
+      if (window.log) window.log(`⏰ 鬧鐘響起！點數重置為 ${window.FACES[v-1]}`, 'good');
+      if (window.triggerEvent) window.triggerEvent('playerDieRolled', 'player', v, 'reroll');
+
+      // 聯網：發送動畫指令
+      if (window.isOnlineMode() && window.myRole === gs.currentTurnPlayer) {
+        window.syncOnlineAction('useDieOnAcc', { accId: 'clock', dieIdx: idx, val: v, source: 'reroll' });
+      }
+
+      setTimeout(() => {
+        if (gs.dice[idx]) gs.dice[idx].rolling = false;
+        window.renderBattle();
+      }, 550);
+      window.renderBattle();
     }
   },
   
@@ -188,5 +229,22 @@ rerollDie: (gs, dropIdx) => {
       gs.enemyFlipCount++;
     }
     log(`${who==='player'?'🔄':'🤖'} ${who==='player'?'你的':'對手的'}行動卡被翻面！`, who==='player'?'bad':'good');
+  },
+
+  // ⚡ 命運干擾專用
+  // battle-fx.js 修正版片段
+  setFate: (gs, targetWho, val) => {
+    if (targetWho === 'enemy') {
+      gs.enemyNextDie = val;
+      // 只有是我發動干擾時，才同步給雲端
+      if (window.isOnlineMode() && window.myRole === gs.currentTurnPlayer) {
+        window.syncBattle({ enemyNextDie: val });
+      }
+    } else {
+      gs.playerNextDie = val;
+    }
+    // ⚡ 修正處：去掉 window. 直接使用 FACES
+    if (window.log) window.log(`🎭 命運干擾：${targetWho === 'enemy' ? '對手' : '你'} 下回合必出 ${FACES[val-1]}`, 'spec');
+    window.renderBattle();
   },
 };

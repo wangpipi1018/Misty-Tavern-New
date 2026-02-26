@@ -2659,11 +2659,38 @@ function useCard(type){
   checkWin();
 }
 
-function checkWin(){
-  if(gs.hp<=0||gs.dummyHp<=0){
+function checkWin() {
+  if (gs.isGameOver) return; // 防止重複執行
+
+  let result = null;
+  let reason = 'hp';
+
+  // --- 判定邏輯 (完全依照你提供的配件清單) ---
+  if (gs.dummyHp <= 0) { result = 'dummy'; reason = 'hp'; }
+  else if (gs.hp <= 0) { result = 'lose'; reason = 'hp'; }
+  else if (gs.medalRounds >= 2) { result = 'dummy'; reason = 'medal'; }
+  else if (gs.enemyMedalRounds >= 2) { result = 'lose'; reason = 'medal'; }
+  else if (gs.enemyFlipCount >= 10) { result = 'dummy'; reason = 'flip'; }
+  else if (gs.flipCount >= 10) { result = 'lose'; reason = 'flip'; }
+
+  if (result) {
+    gs.isGameOver = true;
     renderBattle();
-    if(gs.dummyHp<=0) setTimeout(()=>endBattle('dummy'),600);
-    else if(gs.hp<=0) setTimeout(()=>endBattle('lose'),600);
+
+    // 只有當回合發動者負責同步最後一刻的勝負
+    if (isOnlineMode() && myRole === gs.currentTurnPlayer) {
+      syncBattle({ 
+        status: 'game-over', 
+        winner: (result === 'dummy' ? myRole : (myRole === 'host' ? 'guest' : 'host')),
+        reason: reason,
+        hp: gs.hp, 
+        dummyHp: gs.dummyHp,
+        medalRounds: gs.medalRounds,
+        enemyMedalRounds: gs.enemyMedalRounds
+      });
+    }
+    
+    setTimeout(() => endBattle(result), 600);
   }
 }
 
