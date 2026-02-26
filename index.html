@@ -519,7 +519,11 @@ const BattleCommander = {
                 }
             }, 550);
         }, 10);
-
+    
+    } else if (act.source === 'split' && act.splitDice) {
+        // 分裂符文：直接替換整個骰子陣列
+        gs.dice = act.splitDice;
+        window.UIRender.renderBattle();
     } else {
         // --- ⚔️ 一般配件投入邏輯 (變灰色鎖定) ---
         if (act.val) gs.dice[act.dieIdx].v = act.val;
@@ -530,6 +534,7 @@ const BattleCommander = {
         gs.enemyStored[acc.id].push(gs.dice[act.dieIdx].v);
 
         const totalNeeded = acc.trigger?.count || (acc.trigger?.faces ? acc.trigger.faces.length : 0);
+        
 
         // ⚡ 獎章特殊處理
         if (acc.id === 'medal' && gs.enemyStored[acc.id].length >= totalNeeded) {
@@ -605,28 +610,46 @@ const BattleCommander = {
     },
 
     // 5. 📡 對手結束回合，強制清理
-    clearAccs: (act) => {
-      
+      clearAccs: (act) => {
+      // 同步對手回合結束時的最終點數（含預言水晶等被動加點）
+      if (act.finalPts !== undefined) {
+        gs.enemyPts = act.finalPts;
+        console.log('收到 finalPts:', act.finalPts, '更新 enemyPts 前:', gs.enemyPts);
+      }
       if (gs.enemyStored) {
         Object.keys(gs.enemyStored).forEach(id => {
           const acc = ACCESSORIES.find(a => a.id === id);
-          // ⚡ 這裡全盤考慮：除非是「榮譽獎章」那種 keepStored 的，不然都要清空
           if (!acc || !acc.keepStored) {
             gs.enemyStored[id] = [];
           }
         });
       }
       window.UIRender.log(`📡 對手未使用的能量已消散`, 'system');
+     },
+
+     syncSteal: (act) => {
+    if (act.actor === myRole) return; // 自己發的不處理
+    const stolen = act.stolen;
+    // 對手偷我的點數：從我扣點，給對手加點
+    gs.pts = Math.max(0, gs.pts - stolen);
+    gs.enemyPts += stolen;
+    if (window.UIRender) {
+        window.UIRender.log(`🛡️ 荊棘反甲：對手奪取了 ${stolen} 點數！`, 'bad');
+        window.UIRender.floatAt(`-${stolen}`, document.getElementById('myCard'), 'pts');
     }
+    window.UIRender.renderBattle();
+    },
   },
 
   // 接收總調度：外部只要傳入 act，我會自動找對應的 actions 執行
-  dispatch: (act) => {
+ dispatch: (act) => {
+    window._isApplyingRemoteAction = true; // ⚡ 开始处理远程动作
     if (BattleCommander.actions[act.type]) {
-      BattleCommander.actions[act.type](act);
-      window.UIRender.renderBattle(); // 每次執行完對手動作，立刻刷新畫面
+        BattleCommander.actions[act.type](act);
+        window.UIRender.renderBattle();
     }
-  }
+    window._isApplyingRemoteAction = false; // ⚡ 处理完毕
+}
 };
 
 // ██████████████████████████████████████████
@@ -2015,7 +2038,7 @@ function startBattle(){
 
   setTimeout(()=>{
     window.UIRender.renderBattle(); 
-    updateCtrl();
+    window.UIRender.updateCtrl();
     const enemyNames = enemyLoadout.map(id => {
       const a = ACCESSORIES.find(x => x.id === id);
       return a ? a.name : '未知';
@@ -2185,16 +2208,18 @@ function doRoll(){
   if (!canRoll || gs.phase !== 'roll') return;
   
   const n = 2 + (gs.bonusDice || 0);
+  console.log(`[${myRole}] 本回合掷骰数量：基础2 + bonusDice=${gs.bonusDice || 0} = ${n}`);
   gs.bonusDice = 0;
   const newDice = [];
   
   // ✨ 為每顆新骰子加入 rolling 標記
   for(let i=0; i<n; i++) {
-    newDice.push({ 
-      v: rand(1, 6), 
-      u: false,
-      rolling: true  // ⚡ 加入滾動標記
-    });
+    let v = rand(1, 6);
+    if (i === 0 && gs.playerNextDie) {
+      v = gs.playerNextDie;
+      gs.playerNextDie = null;
+    }
+    newDice.push({ v, u: false, rolling: true });
   }
 
   // ✨ 設定計時器，動畫結束後移除 rolling 標記
@@ -2263,6 +2288,14 @@ function useDieOnCard(idx){
 }
 
 function useDieOnAcc(idx, accId) {
+
+// 在函數開頭或附近定義 bonusMap（可放在全局）
+const bonusMap = {
+    match: 1,    // 火柴
+    mirror: 2,   // 魔鏡
+    reaction: 2  // 應激反應（雖然是被動，但 AI 使用時會走到這裡）
+};
+
   // 單機模式：直接允許；聯網模式：需要是我的回合
   const isSinglePlayer = gs && gs.isSinglePlayer === true;
   const canAct = isSinglePlayer ? true : (myRole === gs.currentTurnPlayer);
@@ -2282,21 +2315,27 @@ function useDieOnAcc(idx, accId) {
     return;
   }
 
-  // 聯網模式才需要廣播
-  if (!isSinglePlayer && roomId) {
+  useAccessory(acc, gs.dice, idx, 'player'); 
+
+  // 在呼叫 useAccessory 之後，發送廣播之前，計算 bonus
+const bonus = bonusMap[accId] || 0;
+console.log(`[${myRole}] 使用配件 ${accId}，bonus=${bonus}`);
+   // 聯網模式才需要廣播
+ if (!isSinglePlayer && roomId) {
     db.ref(`rooms/${roomId}/battle/lastAction`).set({
-      type: 'useDieOnAcc',
-      actor: myRole,
-      dieIdx: idx,
-      accId: accId,
-      val: gs.dice[idx].v,
-      timestamp: Date.now(),
-      actionId: Math.random()
+        type: 'useDieOnAcc',
+        actor: myRole,
+        dieIdx: idx,
+        accId: accId,
+        val: gs.dice[idx].v,
+        source: accId === 'clock' ? 'reroll' : accId === 'splitter' ? 'split' : 'normal',
+        splitDice: accId === 'splitter' ? gs.dice : null,
+        timestamp: Date.now(),
+        actionId: Math.random()
     });
     db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
-  }
-
-  useAccessory(acc, gs.dice, idx, 'player'); 
+   }
+   console.log(`[${myRole}] 已发送 useDieOnAcc 动作，bonus=${bonus}`);
   window.UIRender.renderBattle();
   checkWin();
 }
@@ -2387,15 +2426,22 @@ function doEndTurn(){
   if (!canAct || gs.phase !== 'action') return;
     // 正常結束回合，清掉計時器並重置超時次數
   clearTurnTimer(true);
-  
+
+     // ⚡ 先觸發回合結束事件（如預言水晶），讓點數更新後再打快照
+  triggerEvent('playerTurnEnd', 'player');
+// 2. ⚡ 關鍵：在事件執行「後」，才抓取最新的點數
+const finalPtsToSync = gs.pts;
+
+console.log('廣播 finalPts:', gs.pts);
   // 聯網模式才需要廣播
   if (!isSinglePlayer && roomId) {
-    db.ref(`rooms/${roomId}/battle/lastAction`).set({
+      db.ref(`rooms/${roomId}/battle/lastAction`).set({
       type: 'clearAccs',
       actor: myRole,
+      finalPts: finalPtsToSync, // ⚡ 確保傳送的是結算後的 7
       timestamp: Date.now(),
       actionId: Math.random()
-    });
+      });
   }
 
    Object.keys(gs.playerStored).forEach(id => {
@@ -2403,6 +2449,7 @@ function doEndTurn(){
     if (!acc || !acc.keepStored) gs.playerStored[id] = [];
    });
 
+ 
 
     // ⚡⚡⚡ 關鍵修正：重置本回合用過的配件清單
   gs.usedAccs = [];
@@ -2420,7 +2467,6 @@ if (!isSinglePlayer && roomId) {
             flipCount: (myRole === 'host') ? gs.flipCount : gs.enemyFlipCount,
             statAtk:   (myRole === 'host') ? gs.statAtk   : gs.enemyStatAtk,
             statHeal:  (myRole === 'host') ? gs.statHeal  : gs.enemyStatHeal,
-            bonusDice: (myRole === 'host') ? (gs.bonusDice || 0) : (gs.enemyBonusDice || 0),
             stored:    JSON.parse(JSON.stringify((myRole === 'host') ? gs.playerStored : gs.enemyStored))
         },
         guest: {
@@ -2430,7 +2476,6 @@ if (!isSinglePlayer && roomId) {
             flipCount: (myRole === 'host') ? gs.enemyFlipCount : gs.flipCount,
             statAtk:   (myRole === 'host') ? gs.enemyStatAtk   : gs.statAtk,
             statHeal:  (myRole === 'host') ? gs.enemyStatHeal  : gs.statHeal,
-            bonusDice: (myRole === 'host') ? (gs.enemyBonusDice || 0) : (gs.bonusDice || 0),
             stored:    JSON.parse(JSON.stringify((myRole === 'host') ? gs.enemyStored  : gs.playerStored))
         },
         medalRounds: {
@@ -2452,7 +2497,7 @@ if (!isSinglePlayer && roomId) {
     setTimeout(() => doEnemyTurn(), 1000);
   }
 
-  triggerEvent('playerTurnEnd', 'player');
+
 
   // 確保點數還是數字
   if (typeof gs.pts !== 'number' || isNaN(gs.pts)) {
@@ -3529,10 +3574,6 @@ battleRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
     
-    // ⚡ 同步 bonusDice
-    if (data.bonusDice !== undefined) {
-        gs.bonusDice = data.bonusDice;
-    }
    
     // ⚡ 核心修正 1：接收對手的計時器同步
 if (data.currentTurnPlayer !== myRole) {
@@ -3623,7 +3664,10 @@ if (data.status === 'game-over') {
         }
       }
     }
-    
+    // E. 命運干擾同步：對手設定給我的 nextDie
+    if (data.enemyNextDie !== undefined) {
+      gs.playerNextDie = data.enemyNextDie;
+    }
   // D. 回合換人同步
     if (data.currentTurnPlayer && data.currentTurnPlayer !== gs.currentTurnPlayer) {
       gs.currentTurnPlayer = data.currentTurnPlayer;
@@ -3642,7 +3686,7 @@ if (data.status === 'game-over') {
     window.UIRender.renderBattle();
     setTimeout(() => {
       lockControlsIfNotMyTurn();
-      updateCtrl(); 
+      window.UIRender.updateCtrl();
     }, 50);
   });
 }

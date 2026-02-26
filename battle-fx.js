@@ -26,24 +26,27 @@ window.FX = {
   },
   
   // who = 獲益者（偷別人點數的那方）
-  stealPts: (gs, who, n, label = "奪取") => {
+stealPts: (gs, who, n, label = "奪取") => {
     const from = who === 'player' ? 'enemy' : 'player';
     const sourcePts = (from === 'player' ? gs.pts : gs.enemyPts) || 0;
-    const stolen = Math.min(n, sourcePts);
+    // 計算出「真理數值」，並防止負數
+    const stolen = Math.max(0, Math.min(n, sourcePts));
     if (stolen <= 0) return;
 
     if (from === 'player') gs.pts -= stolen; else gs.enemyPts -= stolen;
     if (who === 'player') gs.pts += stolen; else gs.enemyPts += stolen;
 
+    // 📡 廣播真相：只有「我（玩家）」發動偷取時才發送，讓對手直接套用結果
+    if (window.isOnlineMode && window.isOnlineMode() && who === 'player') {
+        // 使用現有的 syncOnlineAction 函數（若無此函數，請用 db.ref 直接寫入）
+        window.syncOnlineAction('syncSteal', { stolen: stolen });
+    }
+
     if (window.UIRender) {
-      const myEl = document.getElementById('myCard');
-      const enemyEl = document.querySelector('.card-wrap:last-child .action-card');
-      window.UIRender.floatAt(`-${stolen}`, (from === 'player' ? myEl : enemyEl), 'pts');
-      window.UIRender.floatAt(`+${stolen}`, (who === 'player' ? myEl : enemyEl), 'pts');
-      window.UIRender.log(`${label}：${who === 'player' ? '你' : '對手'} 奪取了 ${stolen} 點數！`, who === 'player' ? 'good' : 'bad');
+        window.UIRender.log(`${label}：${who === 'player' ? '你' : '對手'} 奪取了 ${stolen} 點數！`, who === 'player' ? 'good' : 'bad');
     }
     window.FX.notify();
-  },
+},
   
   clearPts: (gs, who) => {
     if(who === 'player') gs.pts = 0; else gs.enemyPts = 0;
@@ -72,6 +75,9 @@ window.FX = {
       window.UIRender.log(`${label}：${target === 'enemy' ? '對手' : '你'} 受到 ${n} 點傷害！`, target === 'enemy' ? 'good' : 'bad');
     }
 
+
+      // ⚡ 只有在处理远程动作时才触发被动效果和死亡判定
+    if (window._isApplyingRemoteAction) {
     // 觸發受傷事件（反甲等被動）
     if (window.triggerEvent) window.triggerEvent('playerTakeDamage', target, n);
 
@@ -91,7 +97,7 @@ window.FX = {
         return;
       }
     }
-
+  }
     window.FX.notify();
   },
 
@@ -135,8 +141,13 @@ window.FX = {
   },
 
   addDice: (gs, who, n) => {
-    if(who === 'player') gs.bonusDice = (gs.bonusDice || 0) + n;
-    else gs.enemyBonusDice = (gs.enemyBonusDice || 0) + n;
+       if(who === 'player') {
+        gs.bonusDice = (gs.bonusDice || 0) + n;
+        console.log(`[${myRole}] 本地 bonusDice 增加 ${n}，现为 ${gs.bonusDice}`);
+    } else {
+        gs.enemyBonusDice = (gs.enemyBonusDice || 0) + n;
+        console.log(`[${myRole}] 本地 enemyBonusDice 增加 ${n}，现为 ${gs.enemyBonusDice}`);
+    }
     if (window.UIRender) window.UIRender.log(`${who === 'player' ? '🎲' : '🤖'} 下回合多 ${n} 顆骰子！`, who === 'player' ? 'good' : 'bad');
     window.FX.notify();
   },

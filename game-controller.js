@@ -21,8 +21,6 @@ window.GameController = {
         enemyMedalRounds: gs.enemyMedalRounds || 0,
         flipCount: gs.flipCount || 0,
         enemyFlipCount: gs.enemyFlipCount || 0,
-        bonusDice: gs.bonusDice || 0,
-        enemyBonusDice: gs.enemyBonusDice || 0,
         enemyNextDie: gs.enemyNextDie || null
       });
     }
