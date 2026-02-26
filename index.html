@@ -444,9 +444,17 @@
 <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
 
-<script src="accessories-config.js"></script> 
 <script src="game-state.js"></script>
+
+<script src="ui-interaction.js"></script>
+
+<script src="ui-render.js"></script>
+
+<script src="game-controller.js"></script>
+
 <script src="battle-fx.js"></script>
+
+<script src="accessories-config.js"></script>
 
 <script>
 
@@ -483,7 +491,7 @@ const BattleCommander = {
       if (gs.dice && gs.dice[act.dieIdx]) {
         gs.dice[act.dieIdx].u = true;
       }
-      log(`📡 對手將 ${FACES[act.val-1]} 填入了行動卡`, 'system');
+      window.UIRender.log(`📡 對手將 ${FACES[act.val-1]} 填入了行動卡`, 'system');
     },
 
    // 在 BattleCommander.useDieOnAcc 中
@@ -492,7 +500,7 @@ const BattleCommander = {
     if (!acc || !gs.dice || !gs.dice[act.dieIdx]) return;
 
     // 1. 顯示 Log
-    log(`📡 對手施展了 ${acc.icon} ${acc.name} 的力量！`, 'bad');
+    window.UIRender.log(`📡 對手施展了 ${acc.icon} ${acc.name} 的力量！`, 'bad');
 
     if (act.source === 'reroll') {
         // --- ⏰ 鬧鐘重骰專屬邏輯 (彩色 + 轉動) ---
@@ -502,12 +510,12 @@ const BattleCommander = {
             gs.dice[act.dieIdx].v = act.val;
             gs.dice[act.dieIdx].u = false;      // 確保重骰後是彩色的
             gs.dice[act.dieIdx].rolling = true; // 啟動旋轉
-            renderBattle();
+            window.UIRender.renderBattle();
 
             setTimeout(() => {
                 if (gs && gs.dice && gs.dice[act.dieIdx]) {
                     gs.dice[act.dieIdx].rolling = false;
-                    renderBattle();
+                    window.UIRender.renderBattle();
                 }
             }, 550);
         }, 10);
@@ -543,7 +551,7 @@ const BattleCommander = {
             gs.enemyUsedAccs.push(act.accId);
         }
         
-        renderBattle();
+        window.UIRender.renderBattle();
     }
 },
 
@@ -572,8 +580,8 @@ const BattleCommander = {
         const oldPts = gs.pts || 0;
         if (oldPts > 0) {
             gs.pts = 0;
-            log(`📡 對手的能量風暴：你的 ${oldPts} 點能量被清空了！`, 'bad');
-            floatAt(`-${oldPts}`, document.getElementById('myCard'), 'pts');
+            window.UIRender.log(`📡 對手的能量風暴：你的 ${oldPts} 點能量被清空了！`, 'bad');
+            window.UIRender.floatAt(`-${oldPts}`, document.getElementById('myCard'), 'pts');
         }
     }
     
@@ -593,7 +601,7 @@ const BattleCommander = {
       });
 
       ledger[accId] = []; // 清空該配件帳本
-      log(`📡 對手從 ${ACCESSORIES.find(a=>a.id===accId).name} 收回了骰子`, 'system');
+      window.UIRender.log(`📡 對手從 ${ACCESSORIES.find(a=>a.id===accId).name} 收回了骰子`, 'system');
     },
 
     // 5. 📡 對手結束回合，強制清理
@@ -608,7 +616,7 @@ const BattleCommander = {
           }
         });
       }
-      log(`📡 對手未使用的能量已消散`, 'system');
+      window.UIRender.log(`📡 對手未使用的能量已消散`, 'system');
     }
   },
 
@@ -616,7 +624,7 @@ const BattleCommander = {
   dispatch: (act) => {
     if (BattleCommander.actions[act.type]) {
       BattleCommander.actions[act.type](act);
-      renderBattle(); // 每次執行完對手動作，立刻刷新畫面
+      window.UIRender.renderBattle(); // 每次執行完對手動作，立刻刷新畫面
     }
   }
 };
@@ -1121,7 +1129,7 @@ function clearAllLedgers() {
       
       // ⚡ 只有在裡面「真的有東西」且「不是榮譽獎章」時，才執行清理與播報
       if (acc && !acc.keepStored && group.ledger[accId] && group.ledger[accId].length > 0) {
-        log(`🧹 ${group.name} 的 ${acc.name} 能量消散了...`, 'system');
+        window.UIRender.log(`🧹 ${group.name} 的 ${acc.name} 能量消散了...`, 'system');
         group.ledger[accId] = []; 
       }
     });
@@ -1165,7 +1173,7 @@ function useAccessory(acc, dice, dropIdx, who = 'player') {
   if (perTurnAccs.includes(acc.id)) {
     const coolDownList = (who === 'player') ? gs.usedAccs : gs.enemyUsedAccs;
     if (coolDownList && coolDownList.includes(acc.id)) {
-      if (who === 'player') log(`🚫 「${acc.name}」本回合已使用過。`, 'bad');
+      if (who === 'player') window.UIRender.log(`🚫 「${acc.name}」本回合已使用過。`, 'bad');
       return;
     }
   }
@@ -1179,7 +1187,7 @@ function useAccessory(acc, dice, dropIdx, who = 'player') {
 if (acc.id === 'medal') {
     if (stored.includes(die.v)) {
         if(who === 'player') {
-            log(`❌ 點數 ${FACES[die.v-1]} 這一輪已收集過！`, 'bad');
+            window.UIRender.log(`❌ 點數 ${FACES[die.v-1]} 這一輪已收集過！`, 'bad');
             const chip = document.getElementById(`chip_${who}_medal`);
             if(chip) {
                 chip.style.animation = 'errorShake 0.3s ease';
@@ -1193,7 +1201,7 @@ if (acc.id === 'medal') {
     stored.push(die.v);
     
     if(who === 'player') {
-        log(`📥 獎章收集到 ${FACES[die.v-1]}！`, 'system');
+        window.UIRender.log(`📥 獎章收集到 ${FACES[die.v-1]}！`, 'system');
         updateMedalDisplay('player');
     }
     
@@ -1212,13 +1220,13 @@ if (acc.id === 'medal') {
         const roundCount = (who === 'player') ? gs.medalRounds : gs.enemyMedalRounds;
         const ownerLabel = (who === 'player') ? '👤 你' : '🤖 對手';
         const logColor = (who === 'player') ? 'good' : 'bad';
-        log(`🏅 ${ownerLabel} 的獎章完成第 ${roundCount} 輪！`, logColor);
+        window.UIRender.log(`🏅 ${ownerLabel} 的獎章完成第 ${roundCount} 輪！`, logColor);
         
         if (roundCount >= 2) {
             if (acc.effect) acc.effect(gs, who, dropIdx, dice);
         } else {
             if(who === 'player') {
-                log(`🏅 獎章開始第 ${roundCount + 1} 輪收集！`, 'system');
+                window.UIRender.log(`🏅 獎章開始第 ${roundCount + 1} 輪收集！`, 'system');
                 updateMedalDisplay('player');
             }
         }
@@ -1226,12 +1234,12 @@ if (acc.id === 'medal') {
         if(who === 'player') {
             const round = (gs.medalRounds || 0) + 1;
             const remaining = 6 - stored.length;
-            log(`🎯 第 ${round}/2 輪，還需要 ${remaining} 種點數`, 'system');
+            window.UIRender.log(`🎯 第 ${round}/2 輪，還需要 ${remaining} 種點數`, 'system');
             updateMedalDisplay('player');
         }
     }
     
-    renderBattle();
+    window.UIRender.renderBattle();
     return;
 }
 
@@ -1243,7 +1251,7 @@ if (acc.id === 'medal') {
   });
 
   if (!neededNow.includes(die.v)) {
-    if(who === 'player') log(`❌ 骰面不符，${acc.name} 充能失敗！`, 'bad');
+    if(who === 'player') window.UIRender.log(`❌ 骰面不符，${acc.name} 充能失敗！`, 'bad');
     return;
   }
 
@@ -1251,7 +1259,7 @@ if (acc.id === 'medal') {
   stored.push(die.v); 
 
   if (stored.length === totalNeeded) {
-    log(`${ownerLabel} 施展了 ${acc.icon} ${acc.name} 的力量！`, logColor); 
+    window.UIRender.log(`${ownerLabel} 施展了 ${acc.icon} ${acc.name} 的力量！`, logColor); 
     
     // 只有 perTurnAccs 裡的配件才加入冷卻
     if (perTurnAccs.includes(acc.id)) {
@@ -1262,7 +1270,7 @@ if (acc.id === 'medal') {
     if (acc.effect) acc.effect(gs, who, dropIdx, dice);
     ledger[acc.id] = []; 
   } else {
-    if(who === 'player') log(`📥 ${ownerLabel} 注入能量 ${FACES[die.v-1]} (${stored.length}/${totalNeeded})`, 'system');
+    if(who === 'player') window.UIRender.log(`📥 ${ownerLabel} 注入能量 ${FACES[die.v-1]} (${stored.length}/${totalNeeded})`, 'system');
   }
 }
 
@@ -2001,18 +2009,18 @@ function startBattle(){
   goTo('battleScreen');
   
   requestAnimationFrame(() => {
-    renderBattle(); 
-    updateCtrl();
+    window.UIRender.renderBattle(); 
+    updateCtr();
   });
 
   setTimeout(()=>{
-    renderBattle(); 
+    window.UIRender.renderBattle(); 
     updateCtrl();
     const enemyNames = enemyLoadout.map(id => {
       const a = ACCESSORIES.find(x => x.id === id);
       return a ? a.name : '未知';
     }).join(', ');
-    log('⚜ 練習開始！對手已裝備：' + enemyNames, 'system');
+    window.UIRender.log('⚜ 練習開始！對手已裝備：' + enemyNames, 'system');
   }, 100);
 }
 
@@ -2044,6 +2052,7 @@ function startPvEBattle() {
   const aiPool = ACCESSORIES.filter(a => a.id !== 'medal').map(a => a.id);
   const enemyLoadout = aiPool.sort(() => 0.5 - Math.random()).slice(0, 3);
   
+  myRole = 'host';
   // 初始化戰鬥狀態
   gs = createBattleState({
     isSinglePlayer: true,
@@ -2057,246 +2066,17 @@ function startPvEBattle() {
   
   // 顯示對手資訊
   setTimeout(() => {
-    renderBattle();
+    window.UIRender.renderBattle();
     const enemyNames = enemyLoadout.map(id => {
       const a = ACCESSORIES.find(x => x.id === id);
       return a ? a.name : '未知';
     }).join(', ');
-    log('🤖 對戰電腦！對手裝備：' + enemyNames, 'system');
+    window.UIRender.log('🤖 對戰電腦！對手裝備：' + enemyNames, 'system');
   }, 100);
 }
 
-function renderBattle(){
-  renderHP();
-  renderCard();
-  renderAccBar();
- // renderEnemyAccIcons(); 
-  renderDice();
-  renderPhase();
-  renderStats();
-  updateCtrl();
-
-   // ⚡ 更新獎章顯示
-    if (gs.loadout && gs.loadout.includes('medal')) {
-        updateMedalDisplay('player');
-    }
-    if (gs.enemyLoadout && gs.enemyLoadout.includes('medal')) {
-        updateMedalDisplay('enemy');
-    }
-
-   // 在 renderBattle 函式結尾處加入
-let timerEl = document.getElementById('turnTimerDisplay');
-
-  // 增加關鍵條件：!gs.isGameOver (遊戲結束就不顯示)
-  if (gs.isGameOver) {
-    // 情況 1：遊戲結束，絕對隱藏
-    if (timerEl) timerEl.style.display = 'none';
-  } 
-  else if (gs.currentTurnPlayer === myRole) {
-    // 情況 2：我的回合，必須顯示 (startTurnTimer 會負責更新內容)
-    if (timerEl) timerEl.style.display = 'block';
-  } 
-  else if (gs.opponentTime !== undefined) {
-    // 情況 3：對手回合且有數據，顯示對手時間
-    if (!timerEl) {
-      timerEl = document.createElement('div');
-      timerEl.id = 'turnTimerDisplay';
-      timerEl.style.cssText = `position:fixed; bottom:80px; right:16px; background:rgba(0,0,0,0.7); color:#f0c060; padding:4px 10px; border-radius:8px; font-size:0.85rem; z-index:100; border:1px solid #8b5e2a;`;
-      document.body.appendChild(timerEl);
-    }
-    timerEl.textContent = `⏱ 對手思考中: ${gs.opponentTime}s`;
-    timerEl.style.color = gs.opponentTime <= 10 ? '#ff6b6b' : '#f0c060';
-    timerEl.style.display = 'block';
-  } 
-  else {
-    // 情況 4：其他 (如換回合空檔)，隱藏
-    if (timerEl) timerEl.style.display = 'none';
-  }
-}
 
 
-
-
-function renderHP(){
-  const ph = document.getElementById('hpHearts');
-  const dh = document.getElementById('dummyHearts');
-  ph.innerHTML=''; dh.innerHTML='';
-  for(let i=0;i<6;i++){
-    const h1=document.createElement('span');h1.className='h-heart'+(i>=gs.hp?' empty':'');h1.textContent='❤';
-    const h2=document.createElement('span');h2.className='h-heart'+(i>=gs.dummyHp?' empty':'');h2.textContent='❤';
-    ph.appendChild(h1); dh.appendChild(h2);
-  }
-}
-
-function renderCard(){
-  // A. 我的行動卡 (左側)
-  const max = gs.face==='A'?8:24;
-  const pct = Math.min(100,(gs.pts/max)*100);
-  document.getElementById('myPts').textContent = isNaN(gs.pts) ? 0 : gs.pts;
-  document.getElementById('myMax').textContent = max;
-  document.getElementById('myBar').style.width = pct+'%';
-  document.getElementById('myFace').textContent = gs.face+'面';
-  document.getElementById('myFace').className = `card-face face-${gs.face}`;
-  
-  // B. 右側戰局面板 (對手)
-  const eMax = gs.enemyFace === 'A' ? 8 : 24; // ⚡ 這裡修正對手的目標點數判定
-  const ePct = Math.min(100, (gs.enemyPts / eMax) * 100);
-  
-  const ePtsEl = document.getElementById('enemyPts');
-  const eBarEl = document.getElementById('enemyBar');
-  const eFaceEl = document.getElementById('enemyFace');
-  const eMaxEl = document.getElementById('enemyMax'); // ⚡ 確保這個 ID 也被更新
-  
-  if(ePtsEl) ePtsEl.textContent = isNaN(gs.enemyPts) ? 0 : gs.enemyPts;
-  if(eBarEl) eBarEl.style.width = ePct + '%';
-  if(eFaceEl) eFaceEl.textContent = gs.enemyFace;
-  if(eMaxEl) eMaxEl.textContent = eMax; // ⚡ 同步更新畫面上的目標點數
-
-  const ready = gs.pts >= max;
-  const card = document.getElementById('myCard');
-  if(card) card.className = 'action-card' + (ready ? ' ready' : '');
-  
-  document.getElementById('atkBtn').disabled = !ready||gs.phase!=='action';
-  document.getElementById('healBtn').disabled = !ready||gs.phase!=='action';
-}
-
-function renderAccBar() {
-  const myBar = document.getElementById('myAccBar');
-  const enemyBar = document.getElementById('enemyAccBar');
-  if (!myBar || !enemyBar) return;
-  
-  myBar.innerHTML = '';
-  enemyBar.innerHTML = '';
-
-  // 渲染玩家配件
-  gs.loadout.forEach(id => {
-    myBar.appendChild(createAccChip(id, 'player'));
-  });
-
-  // 渲染對手配件
-  gs.enemyLoadout.forEach(id => {
-    enemyBar.appendChild(createAccChip(id, 'enemy'));
-  });
-}
-function createAccChip(id, owner) {
-    const acc = ACCESSORIES.find(a => a.id === id);
-    if (!acc) return document.createElement('div');
-    
-    const ledger = (owner === 'player') ? gs.playerStored : gs.enemyStored;
-    const stored = ledger ? (ledger[id] || []) : [];
-    const isStoring = stored.length > 0;
-    
-    const chip = document.createElement('div');
-    chip.className = 'acc-chip' + (isStoring ? ' storing' : '');
-    chip.id = `chip_${owner}_${id}`;
-    
-    // 特殊處理獎章
-    if (id === 'medal') {
-        const rounds = (owner === 'player') ? (gs.medalRounds || 0) : (gs.enemyMedalRounds || 0);
-        const currentRound = rounds + 1;
-        
-        let medalHtml = `<div class="chip-ico">🏅</div>`;
-        medalHtml += `<div class="chip-nm">榮譽獎章</div>`;
-        
-        // 顯示已收集的點數
-        if (stored.length > 0) {
-            medalHtml += `<div class="medal-progress">`;
-            [1,2,3,4,5,6].forEach(v => {
-                const collected = stored.includes(v);
-                medalHtml += `<span class="medal-dot ${collected ? 'collected' : ''}">${collected ? FACES[v-1] : ''}</span>`;
-            });
-            medalHtml += `</div>`;
-        }
-        
-        // 顯示輪數
-        medalHtml += `<div class="medal-round">第 ${currentRound}/2 輪</div>`;
-        
-        chip.innerHTML = medalHtml;
-    } else {
-        // 一般配件
-        const totalNeeded = acc.trigger?.count || (acc.trigger?.faces ? acc.trigger.faces.length : 0);
-        const progressText = (totalNeeded > 1) ? ` (${stored.length}/${totalNeeded})` : '';
-        
-        chip.innerHTML = `
-            <div class="chip-ico">${acc.icon}</div>
-            <div class="chip-nm">${acc.name}${progressText}</div>
-            ${isStoring && owner === 'player' && !acc.noRefund ? '<div style="font-size:0.4rem; color:var(--ember-glow); margin-top:2px;">[點擊退還]</div>' : ''}
-            ${acc.type === 'passive' ? '<div class="chip-passive">被動</div>' : ''}
-        `;
-    }
-    
-    // 點擊事件
-    chip.onclick = () => {
-        if (owner === 'player' && isStoring) {
-            // 獎章特殊處理：不能退回
-            if (acc.noRefund) {
-                log(`🏅 獎章投入的骰子不能收回！`, 'system');
-                
-                // 顯示詳細進度
-                const rounds = (gs.medalRounds || 0);
-                const currentRound = rounds + 1;
-                const collected = stored.map(v => FACES[v-1]).join(' ');
-                const needed = [1,2,3,4,5,6].filter(v => !stored.includes(v)).map(v => FACES[v-1]).join(' ');
-                
-                log(`🏅 第 ${currentRound}/2 輪進度:`, 'system');
-                if (stored.length > 0) log(`已收集: ${collected}`, 'system');
-                log(`還需要: ${needed}`, 'system');
-                return;
-            }
-            
-            // 一般配件的退回邏輯
-          
-
-          syncBattleAction({
-    type: 'refundAcc',
-    actor: myRole,
-    accId: id
-}).catch(err => {
-    console.error("❌ 聯網廣播失敗:", err);
-});
-            
-            const storedValues = [...stored];
-            storedValues.forEach(val => {
-                const target = gs.dice.find(d => d.u && d.v === val);
-                if (target) target.u = false;
-            });
-            ledger[id] = [];
-            
-            log(`📤 已從 ${acc.name} 退回骰子`, 'system');
-            renderBattle();
-        } else {
-            showTip(acc);
-        }
-    };
-    
-    return chip;
-}
-
-function updateMedalDisplay(who) {
-    const chip = document.getElementById(`chip_${who}_medal`);
-    if (!chip) return;
-    
-    const ledger = (who === 'player') ? gs.playerStored : gs.enemyStored;
-    const stored = ledger['medal'] || [];
-    const rounds = (who === 'player') ? (gs.medalRounds || 0) : (gs.enemyMedalRounds || 0);
-    const currentRound = rounds + 1;
-    
-    let medalHtml = `<div class="chip-ico">🏅</div>`;
-    medalHtml += `<div class="chip-nm">榮譽獎章</div>`;
-    
-    // 顯示已收集的點數
-    medalHtml += `<div class="medal-progress">`;
-    [1,2,3,4,5,6].forEach(v => {
-        const collected = stored.includes(v);
-        medalHtml += `<span class="medal-dot ${collected ? 'collected' : ''}">${collected ? FACES[v-1] : ''}</span>`;
-    });
-    medalHtml += `</div>`;
-    
-    // 顯示輪數
-    medalHtml += `<div class="medal-round">第 ${currentRound}/2 輪</div>`;
-    
-    chip.innerHTML = medalHtml;
-}
 
 function renderEnemyAccIcons() {
   const titleEl = document.querySelector('.bh-title');
@@ -2309,106 +2089,8 @@ function renderEnemyAccIcons() {
   }
 }
 
-function renderDice(){
-  const tray = document.getElementById('diceTray');
-  if(!tray) return;
-  tray.innerHTML = '';
-  
-  if(!gs || !gs.rolled){
-    tray.innerHTML = '<div style="font-family:\'IM Fell English\',serif;font-style:italic;font-size:.8rem;color:var(--leather-lt)">按「擲骰」開始本回合</div>';
-    return;
-  }
 
-  const isSinglePlayer = gs.isSinglePlayer === true;
-  const isMultiPlayer = !isSinglePlayer && roomId && myRole;
-  const isOpponentTurn = isMultiPlayer ? (myRole !== gs.currentTurnPlayer) : false;
 
-  gs.dice.forEach((die, i) => {
-    const el = document.createElement('div');
-    
-    const isLocked = isOpponentTurn || gs.isAIThinking; 
-    
-    // ⚡ 組裝 class 名稱
-    let classes = 'die';
-    if (die.u) classes += ' used';
-    if (isLocked) classes += ' locked';
-    if (die.rolling) classes += ' rolling';  // ✨ 這行要有！
-    
-    el.className = classes;
-    el.innerHTML = FACES[die.v - 1] + `<span class="die-val">${die.v}</span>`;
-    el.dataset.idx = i;
-
-    if(!die.u && !isLocked) {
-      setupDrag(el, i);
-    }
-    tray.appendChild(el);
-  });
-}
-
-function renderPhase(){
-  const labels=['擲骰','行動','結束'];
-  const phases=['roll','action','end'];
-  const cur=phases.indexOf(gs.phase);
-  labels.forEach((l,i)=>{
-    const el=document.getElementById('ph'+i);
-    el.textContent=l;
-    el.className='phase-pill '+(i<cur?'pp-done':i===cur?'pp-active':'pp-inactive');
-  });
-  document.getElementById('bh_turn').textContent=`第${gs.statTurn}回合 · ${gs.phase==='roll'?'擲骰階段':gs.phase==='action'?'行動階段':'結束階段'}`;
-}
-
-function renderStats(){
-  // 防呆：如果元素不存在就不執行
-  const statFlip = document.getElementById('statFlip');
-  if (!statFlip) return;
-  
-  // 翻轉次數：玩家 / 對手
-  statFlip.textContent = `${gs.flipCount} / ${gs.enemyFlipCount || 0}`;
-  
-  // 攻擊次數：玩家 / 對手
-  document.getElementById('statAtk').textContent = gs.statAtk;
-  document.getElementById('statEnemyAtk').textContent = gs.enemyStatAtk || 0;
-  
-  // 回血次數：玩家 / 對手
-  document.getElementById('statHeal').textContent = gs.statHeal;
-  document.getElementById('statEnemyHeal').textContent = gs.enemyStatHeal || 0;
-  
-  document.getElementById('statTurn').textContent = gs.statTurn;
-}
-
-function updateCtrl() {
-  const rollBtn = document.getElementById('rollBtn');
-  const endBtn = document.getElementById('endBtn');
-  if (!rollBtn || !endBtn) return;
-
-  // 安全判斷：如果 gs 不存在，直接鎖住所有按鈕
-  if (!gs) {
-    rollBtn.disabled = true;
-    endBtn.disabled = true;
-    return;
-  }
-
-  // 判斷是否為單機練習模式
-  const isSinglePlayer = gs.isSinglePlayer === true;
-  
-  // 聯網模式：需要 roomId 和 myRole 都存在
-  const isMultiPlayer = !isSinglePlayer && roomId && myRole;
-  
-  // 聯網模式：用 myRole 判斷；單機模式：永遠是我的回合
-  const isMyTurn = isSinglePlayer ? true : (isMultiPlayer && myRole === gs.currentTurnPlayer);
-
-  // 1. 擲骰按鈕
-  const canRoll = isMyTurn && gs.phase === 'roll';
-  rollBtn.disabled = !canRoll;
-  rollBtn.style.opacity = canRoll ? "1" : "0.3";
-  rollBtn.style.pointerEvents = canRoll ? "auto" : "none";
-  
-  // 2. 結束按鈕
-  const canEnd = isMyTurn && gs.phase === 'action';
-  endBtn.disabled = !canEnd;
-  endBtn.style.opacity = canEnd ? "1" : "0.3";
-  endBtn.style.pointerEvents = canEnd ? "auto" : "none";
-}
 // ─────────────────────────────────────────
 //  ROLL
 // ─────────────────────────────────────────
@@ -2465,7 +2147,7 @@ function startTurnTimer() {
         }
       } else {
         // 第一次超時：強制結束回合
-        log('⏰ 回合超時，自動結束回合！', 'bad');
+        window.UIRender.log('⏰ 回合超時，自動結束回合！', 'bad');
         showTavernMsg('⚠️ 回合超時，自動結束回合', 3000);
         doEndTurn();
       }
@@ -2519,7 +2201,7 @@ function doRoll(){
   setTimeout(() => {
     if (gs && gs.dice) {
       gs.dice.forEach(d => d.rolling = false);
-      renderBattle();  // 重新渲染，移除滾動效果
+      window.UIRender.renderBattle();  // 重新渲染，移除滾動效果
     }
   }, 550); // 和 CSS 動畫時間一致 (.55s)
 
@@ -2544,7 +2226,7 @@ function doRoll(){
     db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
   }
 
-  renderBattle();
+  window.UIRender.renderBattle();
 }
 
 // ─────────────────────────────────────────
@@ -2576,8 +2258,8 @@ function useDieOnCard(idx){
     db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
   }
 
-  log(`📥 你使用了骰子 ${FACES[die.v-1]}，轉換為能量`, 'player');
-  renderBattle(); 
+  window.UIRender.log(`📥 你使用了骰子 ${FACES[die.v-1]}，轉換為能量`, 'player');
+  window.UIRender.renderBattle(); 
 }
 
 function useDieOnAcc(idx, accId) {
@@ -2615,7 +2297,7 @@ function useDieOnAcc(idx, accId) {
   }
 
   useAccessory(acc, gs.dice, idx, 'player'); 
-  renderBattle();
+  window.UIRender.renderBattle();
   checkWin();
 }
 
@@ -2655,7 +2337,7 @@ function useCard(type){
     gs.statHeal++;
   }
   
-  renderBattle();
+  window.UIRender.renderBattle();
   checkWin();
 }
 
@@ -2675,7 +2357,7 @@ function checkWin() {
 
   if (result) {
     gs.isGameOver = true;
-    renderBattle();
+    window.UIRender.renderBattle();
 
     // 只有當回合發動者負責同步最後一刻的勝負
     if (isOnlineMode() && myRole === gs.currentTurnPlayer) {
@@ -2777,9 +2459,9 @@ if (!isSinglePlayer && roomId) {
     gs.pts = 0;
   }
 
-  log(`─── 你結束了回合 ───`, 'system');
+  window.UIRender.log(`─── 你結束了回合 ───`, 'system');
   gs.phase = 'end';
-  renderBattle();
+  window.UIRender.renderBattle();
 }
 
 // ─────────────────────────────────────────
@@ -2819,11 +2501,11 @@ if (gs.statTurn >= 3) {
   // 獎勵金幣
   if (prize > 0) {
     playerAccount.gold += prize;
-    log(msg, 'good');
+    window.UIRender.log(msg, 'good');
     saveAccountToCloud();
     syncAccountUI();
   } else {
-    log(msg, 'system');
+    window.UIRender.log(msg, 'system');
   }
 
   // 渲染結算畫面
@@ -2918,183 +2600,16 @@ function prepareNewGame() {
     goTo('prepScreen');
 }
 
-// ─────────────────────────────────────────
-//  DRAG & DROP
-// ─────────────────────────────────────────
-const ghost=document.getElementById('dragGhost');
-let dragging=false,dragIdx=null;
-
-function setupDrag(el,idx){
-  const move=(x,y)=>{ 
-    ghost.style.left=(x-29)+'px'; 
-    ghost.style.top=(y-29)+'px'; 
-  };
-
-  const end = (x, y) => {
-    if (!dragging) return;
-    const currentIdx = dragIdx;
-    dragging = false;
-    ghost.classList.remove('active');
-    el.style.opacity = '1';
-
-    const t = getTarget(x, y);
-    if (t === 'card') {
-      useDieOnCard(currentIdx);
-    } else if (t) {
-      useDieOnAcc(currentIdx, t);
-    }
-
-    clearDropHighlights();
-    dragIdx = null;
-    renderBattle();
-  };
-
-  // 🖱️ --- 電腦版滑鼠事件 ---
-  el.addEventListener('mousedown', e => {
-    // 單機模式：直接允許；聯網模式：需要是我的回合
-    const isSinglePlayer = gs && gs.isSinglePlayer === true;
-    const canAct = isSinglePlayer ? true : (myRole === gs.currentTurnPlayer);
-    
-    if (!canAct) {
-      return; 
-    }
-    e.preventDefault(); 
-    dragging = true; dragIdx = idx;
-    ghost.innerHTML = el.innerHTML;
-    ghost.style.width = el.offsetWidth + 'px';
-    ghost.style.height = el.offsetHeight + 'px';
-    ghost.classList.add('active');
-    el.style.opacity = '.3';
-    move(e.clientX, e.clientY);
-    setDropHighlights(true);
-  });
-
-  // ⚡ 核心修復：這兩行必須存在，滑鼠動的時候鬼影才會動！
-  const onMouseMove = (e) => { if(dragging) move(e.clientX, e.clientY); };
-  const onMouseUp = (e) => { if(dragging) end(e.clientX, e.clientY); };
-  
-  // 為了效能，綁在全域 document 上
-  document.addEventListener('mousemove', onMouseMove);
-  document.addEventListener('mouseup', onMouseUp);
-
-  // 📱 --- 手機版觸控事件 ---
-  el.addEventListener('touchstart', e => {
-    // 單機模式：直接允許；聯網模式：需要是我的回合
-    const isSinglePlayer = gs && gs.isSinglePlayer === true;
-    const canAct = isSinglePlayer ? true : (myRole === gs.currentTurnPlayer);
-    
-    if (!canAct) return;
-
-    if (e.cancelable) e.preventDefault(); 
-    dragging = true; dragIdx = idx;
-    const t = e.touches[0];
-    ghost.innerHTML = el.innerHTML;
-    ghost.style.width = el.offsetWidth + 'px';
-    ghost.style.height = el.offsetHeight + 'px';
-    ghost.classList.add('active');
-    el.style.opacity = '.3';
-    move(t.clientX, t.clientY);
-    setDropHighlights(true);
-  }, { passive: false });
-
-  el.addEventListener('touchmove', e => {
-    if (dragging) {
-      if (e.cancelable) e.preventDefault(); 
-      const t = e.touches[0];
-      move(t.clientX, t.clientY);
-    }
-  }, { passive: false });
-
-  el.addEventListener('touchend', e => {
-    if (dragging) {
-      const t = e.changedTouches[0];
-      end(t.clientX, t.clientY);
-    }
-  }, { passive: false });
-}
-
-function setDropHighlights(on){
-  const card = document.getElementById('myCard');
-  
-  // 只有在：1. 開啟亮框 2. 行動階段 3. 玩家拖曳中 時才亮紅框
-  if (on && gs.phase === 'action' && !gs.isAIThinking) {
-    card.classList.add('droptarget');
-  } else {
-    card.classList.remove('droptarget');
-  }
-  
-  // 配件晶片紅框邏輯 (保持剛才修正好的 chip_player_...)
-  gs.loadout.forEach(id => {
-    const acc = ACCESSORIES.find(a => a.id === id);
-    const chip = document.getElementById('chip_player_' + id);
-    
-    if (chip && acc) {
-      if (on && acc.type === 'active' && canUseAccessory(acc, gs.dice, dragIdx, 'player')) {
-        chip.classList.add('droptarget');
-      } else {
-        chip.classList.remove('droptarget');
-      }
-    }
-  });
-}
-function clearDropHighlights(){ setDropHighlights(false); }
-function getTarget(x, y) {
-  // 抓取行動卡的感應區域
-  const card = document.getElementById('myCard');
-  if (card) {
-    const cardR = card.getBoundingClientRect();
-    // 判定滑鼠放開的位置(x, y)是否在行動卡範圍內
-    if (x >= cardR.left && x <= cardR.right && y >= cardR.top && y <= cardR.bottom) {
-      return 'card';
-    }
-  }
-
-  // 抓取配件欄位的感應區域
-  for (const id of gs.loadout) {
-    const acc = ACCESSORIES.find(a => a.id === id);
-    // 核心修正：對應到玩家專屬的 chip 元素 ID
-    const c = document.getElementById('chip_player_' + id); 
-    if (!c || !acc || acc.type === 'passive') continue;
-
-    const r = c.getBoundingClientRect();
-    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id;
-  }
-  return null;
-}
 
 // ─────────────────────────────────────────
 //  FLOAT TEXT
 // ─────────────────────────────────────────
-function floatAt(txt,anchorEl,cls){
-  if(!anchorEl) return;
-  const el=document.createElement('div');
-  el.className=`float-text ft-${cls}`;
-  el.textContent=txt;
-  const r=anchorEl.getBoundingClientRect();
-  el.style.left=(r.left+r.width/2-20)+'px';
-  el.style.top=(r.top)+'px';
-  document.body.appendChild(el);
-  setTimeout(()=>el.remove(),1100);
-}
+
 
 // ─────────────────────────────────────────
 //  LOG
 // ─────────────────────────────────────────
-function log(msg, cls='system') {
-  const logEl = document.getElementById('battleLog');
-  if(!logEl) return;
-  const d = document.createElement('div');
-  d.className = 'log-line log-' + cls;
-  d.textContent = msg;
-  logEl.appendChild(d);
-  
-  // ⚡ 自動清理：只保留最後 20 條，保持視窗清爽
-  while (logEl.childNodes.length > 20) {
-    logEl.removeChild(logEl.firstChild);
-  }
-  
-  logEl.scrollTop = logEl.scrollHeight;
-}
+
 
 // ─────────────────────────────────────────
 //  TOOLTIP
@@ -3137,11 +2652,11 @@ async function doEnemyTurn() {
   gs.enemyUsedAccs = [];
   const currentId = gameInstanceId;
   gs.isAIThinking = true;
-  renderBattle();
+  window.UIRender.renderBattle();
   
   triggerEvent('playerTurnStart', 'enemy');
 
-  log('🤖 對手正在思考下一步...', 'system');
+  window.UIRender.log('🤖 對手正在思考下一步...', 'system');
   
   await sleep(1200);
   if (currentId !== gameInstanceId) return;
@@ -3155,7 +2670,7 @@ async function doEnemyTurn() {
     aiDice.push({ v, u: false });
     triggerEvent('playerDieRolled', 'enemy', v, 'start'); 
   }
-  log(`🎲 對手擲出了：${aiDice.map(d => FACES[d.v - 1]).join(' ')}`, 'bad');
+  window.UIRender.log(`🎲 對手擲出了：${aiDice.map(d => FACES[d.v - 1]).join(' ')}`, 'bad');
 
   for (let die of aiDice) {
     await sleep(600); 
@@ -3170,7 +2685,7 @@ async function doEnemyTurn() {
       const dieIdx = aiDice.indexOf(die);
       if (canUseAccessory(acc, aiDice, dieIdx, 'enemy')) {
         useAccessory(acc, aiDice, dieIdx, 'enemy'); 
-        renderBattle();
+        window.UIRender.renderBattle();
         await sleep(800);
         
         acted = true;
@@ -3180,8 +2695,8 @@ async function doEnemyTurn() {
 
     if (!acted) {
       gs.enemyPts += die.v;
-      log(`📥 對手將 ${FACES[die.v-1]} 填入行動卡 (+${die.v})`, 'system');
-      renderBattle();
+      window.UIRender.log(`📥 對手將 ${FACES[die.v-1]} 填入行動卡 (+${die.v})`, 'system');
+      window.UIRender.renderBattle();
     }
   }
 
@@ -3203,7 +2718,7 @@ if (gs.enemyPts >= eMax) {
     } else {
         FX.damage(gs, 'player', 1, "🃏 對手使用行動卡");
     }
-    renderBattle();
+    window.UIRender.renderBattle();
     checkWin();
 }
 
@@ -3216,8 +2731,8 @@ if (gs.enemyPts >= eMax) {
   gs.statTurn++;
   gs.phase = 'roll';
   gs.rolled = false;
-  log(`─── 對手回合結束 ───`, 'system');
-  renderBattle();
+  window.UIRender.log(`─── 對手回合結束 ───`, 'system');
+  window.UIRender.renderBattle();
 }
 
 // 📜 顯示與關閉規則指南的控制函式
@@ -3864,20 +3379,20 @@ if (snap) {
   goTo('battleScreen');
 
   // ── 重連告知 log ───────────────────────────────────────────────
-  log('⚔️ 重新連線成功！戰鬥繼續。', 'system');
+  window.UIRender.log('⚔️ 重新連線成功！戰鬥繼續。', 'system');
 
   // 若重連時本回合已有骰子，提醒玩家點數狀態可能與對手畫面短暫不一致
   if (gs.rolled) {
-    log('⚠️ 提示：本回合行動卡點數已從上回合結算點還原。若你本回合已累積點數，畫面顯示可能與對手短暫不一致，下回合結束後將自動同步。', 'system');
+    window.UIRender.log('⚠️ 提示：本回合行動卡點數已從上回合結算點還原。若你本回合已累積點數，畫面顯示可能與對手短暫不一致，下回合結束後將自動同步。', 'system');
   }
 
   // 若有配件儲能進度，提醒玩家
   const hasStoredProgress = gs.loadout.some(id => (gs.playerStored[id] || []).length > 0);
   if (hasStoredProgress) {
-    log('⚠️ 提示：配件儲能進度已盡力還原，若有遺失請重新投入骰子。', 'system');
+   window.UIRender.log('⚠️ 提示：配件儲能進度已盡力還原，若有遺失請重新投入骰子。', 'system');
   }
 
-  renderBattle();
+  window.UIRender.renderBattle();
   lockControlsIfNotMyTurn();
   listenToBattleActions();
   showTavernMsg('⚔️ 重新連線成功！');
@@ -3919,10 +3434,10 @@ if (snap) {
 
   // 2. 切換到戰鬥畫面
   goTo('battleScreen');
-  log("⚔️ 真人對決開始！房主先攻。", "system");
+  window.UIRender.log("⚔️ PVP對決開始！房主先攻。", "system");
 
   // 3. 渲染畫面
-  renderBattle();
+  window.UIRender.renderBattle();
 
   // 4. ⚡ 核心：如果是 guest，鎖死操作
   lockControlsIfNotMyTurn();
@@ -4005,7 +3520,7 @@ function listenToBattleActions() {
         
         // 顯示通知並同步畫面
         showTavernMsg('✅ 對手已重新連線！', 3000);
-        if (typeof renderBattle === 'function') renderBattle();
+        if (typeof renderBattle === 'function') window.UIRender.renderBattle();
       }
     }
   });
@@ -4094,7 +3609,7 @@ if (data.status === 'game-over') {
       gs.dice = []; 
       gs.usedAccs = [];      
       gs.enemyUsedAccs = []; 
-      renderBattle(); // 👈 重新渲染畫面
+      window.UIRender.renderBattle(); // 👈 重新渲染畫面
     }
 
    // C. ⚡ 聯網動作分發 (簡潔版)
@@ -4124,7 +3639,7 @@ if (data.status === 'game-over') {
     }
 
     // 重新渲染與 UI 解鎖
-    renderBattle();
+    window.UIRender.renderBattle();
     setTimeout(() => {
       lockControlsIfNotMyTurn();
       updateCtrl(); 

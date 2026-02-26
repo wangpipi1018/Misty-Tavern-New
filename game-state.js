@@ -31,7 +31,8 @@ window.createBattleState = function(config) {
 
     // 血量
     hp: 6, dummyHp: 6,
-
+    maxHp: 6,      // 玩家血量上限
+    enemyMaxHp: 6, // 對手血量上限
     // 行動卡
     pts: 0, face: 'A',
     enemyPts: 0, enemyFace: 'A',
