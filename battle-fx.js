@@ -36,10 +36,14 @@ stealPts: (gs, who, n, label = "奪取") => {
     if (from === 'player') gs.pts -= stolen; else gs.enemyPts -= stolen;
     if (who === 'player') gs.pts += stolen; else gs.enemyPts += stolen;
 
-    // 📡 廣播真相：只有「我（玩家）」發動偷取時才發送，讓對手直接套用結果
-    if (window.isOnlineMode && window.isOnlineMode() && who === 'player') {
-        // 使用現有的 syncOnlineAction 函數（若無此函數，請用 db.ref 直接寫入）
-        window.syncOnlineAction('syncSteal', { stolen: stolen });
+    // ⚡ 聯網同步：如果是「我被打」觸發了反甲，廣播這個偷取事件
+   if (window.isOnlineMode && window.isOnlineMode() && window.syncBattleAction) {
+        window.syncBattleAction({ 
+            type: 'steal', 
+            actor: window.myRole,
+            victim: from, // 告訴對方誰是被偷的那一方
+            amount: stolen 
+        });
     }
 
     if (window.UIRender) {
@@ -48,11 +52,12 @@ stealPts: (gs, who, n, label = "奪取") => {
     window.FX.notify();
 },
   
-  clearPts: (gs, who) => {
+  clearPts: (gs, who, label) => {
     if(who === 'player') gs.pts = 0; else gs.enemyPts = 0;
-    if (window.UIRender) window.UIRender.log(`${who === 'player' ? '⚔' : '🤖'} 行動卡點數被清空！`, who === 'player' ? 'bad' : 'good');
+    const defaultMsg = `${who === 'player' ? '⚔' : '🤖'} 行動卡點數被清空！`;
+    if (window.UIRender) window.UIRender.log(label || defaultMsg, who === 'player' ? 'bad' : 'good');
     window.FX.notify();
-  },
+},
   
   fillCard: (gs, who) => {
     const max = (who === 'player' ? gs.face : gs.enemyFace) === 'A' ? 8 : 24;
@@ -76,12 +81,12 @@ stealPts: (gs, who, n, label = "奪取") => {
     }
 
 
-      // ⚡ 只有在处理远程动作时才触发被动效果和死亡判定
-    if (window._isApplyingRemoteAction) {
-    // 觸發受傷事件（反甲等被動）
-    if (window.triggerEvent) window.triggerEvent('playerTakeDamage', target, n);
+  // 反甲：只在「我被打」時觸發，不在「我打對手」時觸發
+    if (window.triggerEvent) {
+      window.triggerEvent('playerTakeDamage', target, n);
+    }
 
-    // 死亡判定：觸發不死鳥羽毛
+    // 死亡判定（移除守衛，讓兩端都能正確判定不死鳥）
     const currentHp = (target === 'player') ? gs.hp : gs.dummyHp;
     if (currentHp <= 0) {
       let saved = false;
@@ -92,12 +97,15 @@ stealPts: (gs, who, n, label = "奪取") => {
           saved = true;
         }
       });
-      if (saved) {
-        window.FX.notify();
-        return;
+    if (saved) {
+            // ⚡ 聯網同步：如果是「我復活了」，廣播復活事件確保對手畫面同步
+            if (window.isOnlineMode && window.isOnlineMode() && target === 'player') {
+                window.syncBattleAction({ type: 'revive', who: 'player' });
+            }
+            window.FX.notify();
+            return;
       }
     }
-  }
     window.FX.notify();
   },
 

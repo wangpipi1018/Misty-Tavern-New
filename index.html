@@ -563,9 +563,21 @@ const BattleCommander = {
     // 3. 📡 對手發動了行動卡技能 (攻擊或治療)
     useCard: (act) => {
     const isMe = (act.actor === myRole);
-    const target = isMe ? 'enemy' : 'player';
 
+    // 1. 能量消耗与翻面（只针对对手）
+    if (!isMe) {
+        const max = gs.enemyFace === 'A' ? 8 : 24;
+        gs.enemyPts = Math.max(0, (gs.enemyPts || 0) - max);
+        gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
+        gs.enemyFlipCount = act.flipCount;
+
+        // 触发对手的翻片事件（例如能量风暴）
+        triggerEvent('playerFlip', 'enemy', gs.enemyFlipCount);
+    }
+
+    // 2. 执行伤害/治疗（会触发反甲、不死鸟等广播）
     if (act.cardType === 'atk') {
+        const target = isMe ? 'enemy' : 'player';
         FX.damage(gs, target, 1, isMe ? "🃏 行動卡攻擊" : "📡 對手行動卡攻擊");
         if(isMe) gs.statAtk++; else gs.enemyStatAtk++;
     } else {
@@ -573,24 +585,6 @@ const BattleCommander = {
         FX.heal(gs, healTarget, 1, isMe ? "💚 行動卡治療" : "📡 對手行動卡治療");
         if(isMe) gs.statHeal++; else gs.enemyStatHeal++;
     }
-
-    // 視覺同步：扣除對手的能量點數並翻面
-    const eMax = gs.enemyFace === 'A' ? 8 : 24;
-    gs.enemyPts = Math.max(0, gs.enemyPts - eMax);
-    gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
-    gs.enemyFlipCount = act.flipCount;
-    
-    // ⚡ 能量風暴：如果對手有這個配件，清空我的點數
-    if (!isMe && gs.enemyLoadout && gs.enemyLoadout.includes('storm')) {
-        const oldPts = gs.pts || 0;
-        if (oldPts > 0) {
-            gs.pts = 0;
-            window.UIRender.log(`📡 對手的能量風暴：你的 ${oldPts} 點能量被清空了！`, 'bad');
-            window.UIRender.floatAt(`-${oldPts}`, document.getElementById('myCard'), 'pts');
-        }
-    }
-    
-    triggerEvent('playerFlip', 'enemy', gs.enemyFlipCount);
 },
 
     // 4. 📡 對手後悔了，從配件收回骰子
@@ -626,29 +620,55 @@ const BattleCommander = {
       }
       window.UIRender.log(`📡 對手未使用的能量已消散`, 'system');
      },
-
-     syncSteal: (act) => {
-    if (act.actor === myRole) return; // 自己發的不處理
-    const stolen = act.stolen;
-    // 對手偷我的點數：從我扣點，給對手加點
-    gs.pts = Math.max(0, gs.pts - stolen);
-    gs.enemyPts += stolen;
+},
+// 在 BattleCommander.actions 对象内（约在 BattleCommander 定义处）
+steal: (act) => {
+    const amount = act.amount;
+   // 既然是收到廣播，代表是對手發動了偷取，victim 欄位標記的是受害者角色
+    if (act.victim === 'player') {
+        // 發送者說 player(他眼中的我) 被偷了 -> 我的點數減少，對手點數增加
+        gs.pts = Math.max(0, (gs.pts || 0) - amount);
+        gs.enemyPts = (gs.enemyPts || 0) + amount;
+        if (window.UIRender) {
+            window.UIRender.log(`📡 對手反甲奪取了你 ${amount} 點能量！`, 'bad');
+            window.UIRender.floatAt(`-${amount}`, document.getElementById('myCard'), 'pts');
+        }
+    } else {
+        // 發送者說 enemy(他眼中的對手) 被偷了 -> 對手點數減少，我的點數增加
+        gs.enemyPts = Math.max(0, (gs.enemyPts || 0) - amount);
+        gs.pts = (gs.pts || 0) + amount;
+        if (window.UIRender) {
+            window.UIRender.log(`📡 你的反甲奪取了對手 ${amount} 點能量！`, 'good');
+            window.UIRender.floatAt(`+${amount}`, document.getElementById('myCard'), 'pts');
+        }
+    }
+    
+    // ⚡ 立即更新 UI，點數不夠時會立刻禁用攻擊按鈕，防止二次攻擊
     if (window.UIRender) {
-        window.UIRender.log(`🛡️ 荊棘反甲：對手奪取了 ${stolen} 點數！`, 'bad');
-        window.UIRender.floatAt(`-${stolen}`, document.getElementById('myCard'), 'pts');
+        window.UIRender.updateCtrl(); 
+        window.UIRender.renderBattle();
+    }
+},
+revive: (act) => {
+    const who = act.who;
+    if (who === 'player') {
+        gs.hp = 1;
+        gs.playerPhoenixUsed = true;
+    } else {
+        gs.dummyHp = 1;
+        gs.enemyPhoenixUsed = true;
+    }
+    if (window.UIRender) {
+        window.UIRender.log(`📡 對手的不死鳥羽毛發動，${who === 'player' ? '你' : '对手'} 复活了！`, 'spec');
     }
     window.UIRender.renderBattle();
-    },
-  },
-
+},
   // 接收總調度：外部只要傳入 act，我會自動找對應的 actions 執行
- dispatch: (act) => {
-    window._isApplyingRemoteAction = true; // ⚡ 开始处理远程动作
+dispatch: (act) => {
     if (BattleCommander.actions[act.type]) {
         BattleCommander.actions[act.type](act);
         window.UIRender.renderBattle();
     }
-    window._isApplyingRemoteAction = false; // ⚡ 处理完毕
 }
 };
 
@@ -1225,7 +1245,7 @@ if (acc.id === 'medal') {
     
     if(who === 'player') {
         window.UIRender.log(`📥 獎章收集到 ${FACES[die.v-1]}！`, 'system');
-        updateMedalDisplay('player');
+        window.UIRender.updateMedalDisplay('player');
     }
     
     if (stored.length === 6) {
@@ -1250,7 +1270,7 @@ if (acc.id === 'medal') {
         } else {
             if(who === 'player') {
                 window.UIRender.log(`🏅 獎章開始第 ${roundCount + 1} 輪收集！`, 'system');
-                updateMedalDisplay('player');
+                window.UIRender.updateMedalDisplay('player');
             }
         }
     } else {
@@ -1258,7 +1278,7 @@ if (acc.id === 'medal') {
             const round = (gs.medalRounds || 0) + 1;
             const remaining = 6 - stored.length;
             window.UIRender.log(`🎯 第 ${round}/2 輪，還需要 ${remaining} 種點數`, 'system');
-            updateMedalDisplay('player');
+            window.UIRender.updateMedalDisplay('player');
         }
     }
     
@@ -2360,7 +2380,6 @@ function useCard(type){
       type: 'useCard',
       cardType: type,
       actor: myRole,
-      val: 1,
       flipCount: gs.flipCount,
       timestamp: Date.now(),
       actionId: Math.random()
@@ -2391,8 +2410,8 @@ function checkWin() {
   else if (gs.hp <= 0) { result = 'lose'; reason = 'hp'; }
   else if (gs.medalRounds >= 2) { result = 'dummy'; reason = 'medal'; }
   else if (gs.enemyMedalRounds >= 2) { result = 'lose'; reason = 'medal'; }
-  else if (gs.enemyFlipCount >= 10) { result = 'dummy'; reason = 'flip'; }
-  else if (gs.flipCount >= 10) { result = 'lose'; reason = 'flip'; }
+ else if (gs.flipCount >= 10) { result = 'dummy'; reason = 'flip'; }
+  else if (gs.enemyFlipCount >= 10) { result = 'lose'; reason = 'flip'; }
 
   if (result) {
     gs.isGameOver = true;
@@ -2513,6 +2532,7 @@ if (!isSinglePlayer && roomId) {
 //  END BATTLE
 // ─────────────────────────────────────────
 function endBattle(reason) {
+  clearTurnTimer(true);
   // 判斷是什麼模式
   const isPvE = gs && (gs.isPvE === true || gs.isSinglePlayer === true);
   const isPvP = !isPvE && roomId && myRole;
@@ -2522,11 +2542,8 @@ function endBattle(reason) {
   let isVictory = false;
 
   // 判斷勝負 - 只有血量歸零才算勝利，翻轉由配件處理
-  if (reason === 'dummy') {
-    isVictory = true;
-  } else if (reason === 'flip') {
-    isVictory = true; // 配件觸發的勝利
-  }
+  const victoryReasons = ['dummy', 'win', 'surrender-win', 'medal-win', 'flip-win', 'flip'];
+  isVictory = victoryReasons.includes(reason);
 
   // 🛡️ 防刷錢機制：至少要打 3 回合
 if (gs.statTurn >= 3) {
@@ -3451,6 +3468,9 @@ if (snap) {
     goTo('tavernDoorScreen');
     return;
   }
+
+  // ⚡ 新增：清空上局殘留動作，防止幽靈勝利
+  db.ref(`rooms/${roomId}/battle/lastAction`).remove();
 
   // 移除大廳的房間監聽，避免戰鬥中被意外觸發
   db.ref('rooms/' + roomId).off();

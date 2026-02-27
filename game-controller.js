@@ -33,6 +33,27 @@ window.GameController = {
   checkWin: function() {
     if (!gs || gs.isGameOver) return;
     
+
+     // ⚡ 核心拦截：检查不死鸟是否应该阻止胜利
+    if (gs.dummyHp <= 0) {
+        const hasPhoenix = gs.enemyLoadout?.includes('phoenix');
+        if (hasPhoenix && !gs.enemyPhoenixUsed) {
+            // 等待 damage 中的不死鸟逻辑执行并广播 revive
+            return;
+        }
+    }
+    if (gs.hp <= 0) {
+        const hasPhoenix = gs.loadout?.includes('phoenix');
+        if (hasPhoenix && !gs.playerPhoenixUsed) {
+            return;
+        }
+    }
+
+
+
+
+
+
     let winner = null;
     let reason = 'hp';
 

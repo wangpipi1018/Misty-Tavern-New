@@ -44,6 +44,8 @@ window.createBattleState = function(config) {
 
     // 骰子
     bonusDice: 0, enemyBonusDice: 0,
+    playerPhoenixUsed: false, // ⚡ 新增：記錄自己是否用過不死鳥
+    enemyPhoenixUsed: false,  // ⚡ 新增：記錄對手是否用過不死鳥
     dice: [],
 
     // 狀態
