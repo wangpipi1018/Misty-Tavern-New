@@ -3,7 +3,8 @@ window.UIRender = {
     // 1. 總調度：一次更新所有戰鬥積木
     renderBattle: function() {
         if (!window.gs) return;
-
+        
+        
         this.renderHP();
         this.renderCard();
         this.renderAccBar();
@@ -12,6 +13,12 @@ window.UIRender = {
         this.renderStats();
         this.updateCtrl();
         this.renderTimer();
+
+        const myNameEl = document.getElementById('battleMyNameDisplay');
+        if (myNameEl) myNameEl.textContent = gs.myName || "勇者";
+
+        const enemyNameEl = document.getElementById('battleEnemyNameDisplay');
+        if (enemyNameEl) enemyNameEl.textContent = gs.enemyName || "對手";
 
         // 更新獎章進度
         if (gs.loadout?.includes('medal')) this.updateMedalDisplay('player');

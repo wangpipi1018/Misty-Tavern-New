@@ -123,7 +123,7 @@ window.ACCESSORIES = [
     req: '⚀ + ⚃',
     desc: '消耗骰子 1 與 4，將自己的行動卡翻面，並獲得 3 點能量。',
     trigger: { type: 'consume', faces: [1, 4] },
-    effect: (gs, who) => {
+   effect: (gs, who) => {
       FX.flipCard(gs, who);
       FX.addPts(gs, who, 3, "📖 秩序加持");
       if (window.triggerEvent) window.triggerEvent('playerFlip', who, (who === 'player' ? gs.flipCount : gs.enemyFlipCount));
@@ -229,10 +229,10 @@ window.ACCESSORIES = [
     req: '翻轉行動卡時',
     desc: '每當你發動行動卡，清空對手的行動卡點數。',
     on: {
-      playerFlip: (gs, actor) => {
-        const target = (actor === 'player') ? 'enemy' : 'player';
-        FX.clearPts(gs, target);
-      }
+    playerUseCard: (gs, actor) => {
+    const target = (actor === 'player') ? 'enemy' : 'player';
+    FX.clearPts(gs, target);
+    }
     }
   },
   {

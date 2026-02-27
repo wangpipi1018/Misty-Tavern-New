@@ -192,7 +192,8 @@
       
       <!-- 你的武裝區 -->
       <div style="text-align: center; min-width: 0;">
-        <div style="color: var(--gold-lt); font-size: clamp(0.7rem, 3vw, 0.8rem); margin-bottom: 0.5rem;">你的武裝</div>
+        <div style="color: var(--gold-lt); font-size: 0.6rem; margin-bottom: 4px;" id="myLobbyName"></div>
+        <div style="color: var(--gold-lt); font-size: clamp(0.7rem, 3vw, 0.8rem); margin-bottom: 0.5rem;">你的配件</div>
         <div id="myLobbySlots" style="display: flex; gap: 2px; justify-content: center; flex-wrap: wrap;"></div>
         <div id="myReadyStatus" style="margin-top: 0.7rem; font-size: clamp(0.5rem, 2.5vw, 0.6rem);">
           <span id="myReadyText" style="color: var(--parch-dim);">⚔ 選填配件中...</span>
@@ -205,7 +206,8 @@
 
       <!-- 對手武裝區 -->
       <div style="text-align: center; min-width: 0;">
-        <div style="color: var(--gold-lt); font-size: clamp(0.7rem, 3vw, 0.8rem); margin-bottom: 0.5rem;">對手武裝</div>
+        <div style="color: var(--gold-lt); font-size: 0.6rem; margin-bottom: 4px;" id="enemyLobbyName"></div>
+        <div style="color: var(--gold-lt); font-size: clamp(0.7rem, 3vw, 0.8rem); margin-bottom: 0.5rem;">對手配件</div>
         <div id="enemyLobbySlots" style="display: flex; gap: 2px; justify-content: center; flex-wrap: wrap;"></div>
         <div id="enemyReadyStatus" style="margin-top: 0.7rem; font-size: clamp(0.5rem, 2.5vw, 0.6rem);">
           <span id="enemyReadyText" style="color: var(--parch-dim);">⏳ 等待對手...</span>
@@ -305,12 +307,16 @@
   </div>
   <div class="hp-zone">
     <div class="hp-block">
-      <div class="hp-block-lbl">勇者血量</div>
+      <div class="hp-block-lbl">
+  <span id="battleMyNameDisplay"></span> 血量
+</div>
       <div class="hearts-row" id="hpHearts"></div>
     </div>
     <div class="vs-sep">VS</div>
     <div class="hp-block">
-      <div class="hp-block-lbl">對手血量</div>
+       <div class="hp-block-lbl">
+    <span id="battleEnemyNameDisplay" ></span> 血量
+  </div>
       <div class="hearts-row" id="dummyHearts"></div>
     </div>
   </div>
@@ -391,7 +397,7 @@
 <div class="screen out" id="victoryScreen">
   <div class="vic-box">
     <div class="vic-icon" id="vic_ico">🏆</div>
-    <div class="vic-title" id="vic_title">練習完成</div>
+    <div class="vic-title" id="vic_title">戰鬥結束</div>
     <div class="vic-sub" id="vic_sub">成果總結</div>
     <div class="vic-reason" id="vic_reason"></div>
     <div class="vic-stats" id="vic_stats"></div>
@@ -477,200 +483,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 
-// ██████████████████████████████████████████
-//  2. 遊戲引擎
-// ██████████████████████████████████████████
-
-const BattleCommander = {
-  actions: {
-    // 1. 📡 對手把骰子放上行動卡
-    useDieOnCard: (act) => {
-      // 在我的螢幕上，給「對手(enemy)」加點數
-      FX.addPts(gs, 'enemy', act.val);
-      // 找到對應的那顆骰子變灰
-      if (gs.dice && gs.dice[act.dieIdx]) {
-        gs.dice[act.dieIdx].u = true;
-      }
-      window.UIRender.log(`📡 對手將 ${FACES[act.val-1]} 填入了行動卡`, 'system');
-    },
-
-   // 在 BattleCommander.useDieOnAcc 中
-   useDieOnAcc: (act) => {
-    const acc = ACCESSORIES.find(a => a.id === act.accId);
-    if (!acc || !gs.dice || !gs.dice[act.dieIdx]) return;
-
-    // 1. 顯示 Log
-    window.UIRender.log(`📡 對手施展了 ${acc.icon} ${acc.name} 的力量！`, 'bad');
-
-    if (act.source === 'reroll') {
-        // --- ⏰ 鬧鐘重骰專屬邏輯 (彩色 + 轉動) ---
-        gs.dice[act.dieIdx].rolling = false; // 先清標記
-        
-        setTimeout(() => {
-            gs.dice[act.dieIdx].v = act.val;
-            gs.dice[act.dieIdx].u = false;      // 確保重骰後是彩色的
-            gs.dice[act.dieIdx].rolling = true; // 啟動旋轉
-            window.UIRender.renderBattle();
-
-            setTimeout(() => {
-                if (gs && gs.dice && gs.dice[act.dieIdx]) {
-                    gs.dice[act.dieIdx].rolling = false;
-                    window.UIRender.renderBattle();
-                }
-            }, 550);
-        }, 10);
-    
-    } else if (act.source === 'split' && act.splitDice) {
-        // 分裂符文：直接替換整個骰子陣列
-        gs.dice = act.splitDice;
-        window.UIRender.renderBattle();
-    } else {
-        // --- ⚔️ 一般配件投入邏輯 (變灰色鎖定) ---
-        if (act.val) gs.dice[act.dieIdx].v = act.val;
-        gs.dice[act.dieIdx].u = true; // 配件用掉了，變灰色
-
-        // 處理配件帳本 (Stored)
-        if (!gs.enemyStored[acc.id]) gs.enemyStored[acc.id] = [];
-        gs.enemyStored[acc.id].push(gs.dice[act.dieIdx].v);
-
-        const totalNeeded = acc.trigger?.count || (acc.trigger?.faces ? acc.trigger.faces.length : 0);
-        
-
-        // ⚡ 獎章特殊處理
-        if (acc.id === 'medal' && gs.enemyStored[acc.id].length >= totalNeeded) {
-            gs.enemyMedalRounds = (gs.enemyMedalRounds || 0) + 1;
-            gs.enemyStored[acc.id] = [];
-            if (gs.enemyMedalRounds >= 2) {
-                setTimeout(() => endBattle('lose'), 1000);
-            }
-        } 
-        // ⚡ 其他配件觸發
-        else if (gs.enemyStored[acc.id].length >= totalNeeded) {
-            acc.effect(gs, 'enemy');
-            gs.enemyStored[acc.id] = [];
-        }
-
-        // 標記本回合已使用
-        if (!gs.enemyUsedAccs) gs.enemyUsedAccs = [];
-        if (!gs.enemyUsedAccs.includes(act.accId)) {
-            gs.enemyUsedAccs.push(act.accId);
-        }
-        
-        window.UIRender.renderBattle();
-    }
-},
-
-    // 3. 📡 對手發動了行動卡技能 (攻擊或治療)
-    useCard: (act) => {
-    const isMe = (act.actor === myRole);
-
-    // 1. 能量消耗与翻面（只针对对手）
-    if (!isMe) {
-        const max = gs.enemyFace === 'A' ? 8 : 24;
-        gs.enemyPts = Math.max(0, (gs.enemyPts || 0) - max);
-        gs.enemyFace = gs.enemyFace === 'A' ? 'B' : 'A';
-        gs.enemyFlipCount = act.flipCount;
-
-        // 触发对手的翻片事件（例如能量风暴）
-        triggerEvent('playerFlip', 'enemy', gs.enemyFlipCount);
-    }
-
-    // 2. 执行伤害/治疗（会触发反甲、不死鸟等广播）
-    if (act.cardType === 'atk') {
-        const target = isMe ? 'enemy' : 'player';
-        FX.damage(gs, target, 1, isMe ? "🃏 行動卡攻擊" : "📡 對手行動卡攻擊");
-        if(isMe) gs.statAtk++; else gs.enemyStatAtk++;
-    } else {
-        const healTarget = isMe ? 'player' : 'enemy';
-        FX.heal(gs, healTarget, 1, isMe ? "💚 行動卡治療" : "📡 對手行動卡治療");
-        if(isMe) gs.statHeal++; else gs.enemyStatHeal++;
-    }
-},
-
-    // 4. 📡 對手後悔了，從配件收回骰子
-    refundAcc: (act) => {
-      const accId = act.accId;
-      const ledger = gs.enemyStored; // 操作對手的帳本
-      const stored = ledger[accId] || [];
-
-      // 把那些對手用掉的骰子變回彩色 (可用狀態)
-      stored.forEach(val => {
-        const target = gs.dice.find(d => d.u && d.v === val);
-        if (target) target.u = false;
-      });
-
-      ledger[accId] = []; // 清空該配件帳本
-      window.UIRender.log(`📡 對手從 ${ACCESSORIES.find(a=>a.id===accId).name} 收回了骰子`, 'system');
-    },
-
-    // 5. 📡 對手結束回合，強制清理
-      clearAccs: (act) => {
-      // 同步對手回合結束時的最終點數（含預言水晶等被動加點）
-      if (act.finalPts !== undefined) {
-        gs.enemyPts = act.finalPts;
-        console.log('收到 finalPts:', act.finalPts, '更新 enemyPts 前:', gs.enemyPts);
-      }
-      if (gs.enemyStored) {
-        Object.keys(gs.enemyStored).forEach(id => {
-          const acc = ACCESSORIES.find(a => a.id === id);
-          if (!acc || !acc.keepStored) {
-            gs.enemyStored[id] = [];
-          }
-        });
-      }
-      window.UIRender.log(`📡 對手未使用的能量已消散`, 'system');
-     },
-},
-// 在 BattleCommander.actions 对象内（约在 BattleCommander 定义处）
-steal: (act) => {
-    const amount = act.amount;
-   // 既然是收到廣播，代表是對手發動了偷取，victim 欄位標記的是受害者角色
-    if (act.victim === 'player') {
-        // 發送者說 player(他眼中的我) 被偷了 -> 我的點數減少，對手點數增加
-        gs.pts = Math.max(0, (gs.pts || 0) - amount);
-        gs.enemyPts = (gs.enemyPts || 0) + amount;
-        if (window.UIRender) {
-            window.UIRender.log(`📡 對手反甲奪取了你 ${amount} 點能量！`, 'bad');
-            window.UIRender.floatAt(`-${amount}`, document.getElementById('myCard'), 'pts');
-        }
-    } else {
-        // 發送者說 enemy(他眼中的對手) 被偷了 -> 對手點數減少，我的點數增加
-        gs.enemyPts = Math.max(0, (gs.enemyPts || 0) - amount);
-        gs.pts = (gs.pts || 0) + amount;
-        if (window.UIRender) {
-            window.UIRender.log(`📡 你的反甲奪取了對手 ${amount} 點能量！`, 'good');
-            window.UIRender.floatAt(`+${amount}`, document.getElementById('myCard'), 'pts');
-        }
-    }
-    
-    // ⚡ 立即更新 UI，點數不夠時會立刻禁用攻擊按鈕，防止二次攻擊
-    if (window.UIRender) {
-        window.UIRender.updateCtrl(); 
-        window.UIRender.renderBattle();
-    }
-},
-revive: (act) => {
-    const who = act.who;
-    if (who === 'player') {
-        gs.hp = 1;
-        gs.playerPhoenixUsed = true;
-    } else {
-        gs.dummyHp = 1;
-        gs.enemyPhoenixUsed = true;
-    }
-    if (window.UIRender) {
-        window.UIRender.log(`📡 對手的不死鳥羽毛發動，${who === 'player' ? '你' : '对手'} 复活了！`, 'spec');
-    }
-    window.UIRender.renderBattle();
-},
-  // 接收總調度：外部只要傳入 act，我會自動找對應的 actions 執行
-dispatch: (act) => {
-    if (BattleCommander.actions[act.type]) {
-        BattleCommander.actions[act.type](act);
-        window.UIRender.renderBattle();
-    }
-}
-};
 
 // ██████████████████████████████████████████
 //  3. 帳號 / 雲端
@@ -680,6 +492,7 @@ const auth = firebase.auth();
 let myUID = null; 
 let reconnectTimer = null;        // 重連計時器
 const ROOM_TIMEOUT = 30000; 
+let roomId = null;      // 確保一開始是 null
 let matchingTimer = null;        // 配對計時器
 let isMatching = false;          // 是否正在配對中
 let lobbyMode = 'pvp'; // 'pve' 或 'pvp'
@@ -733,6 +546,7 @@ auth.onAuthStateChanged((user) => {
   if (user) {
     myUID = user.uid;
     window.myPlayerId = myUID;
+
     
     // 隱藏登入按鈕，顯示「推開酒館大門」
     if(loginButtons) loginButtons.style.display = 'none';
@@ -790,12 +604,14 @@ function loadUserAccount(uid) {
   // 1. 定義「絕對安全」的預設結構
   const defaultAccount = {
     name: "勇者" + Math.floor(Math.random()*1000),
-    gold: 0,
+    gold: 60,
     level: 1,
     warehouse: [],
     unlockedAccessories: [], 
     currentLoadout: [],
-    shards: 0
+    shards: 0,
+    astDailyWinDate: null,   // 新增
+    lastLoginDate: null       // 新增
   };
 
   db.ref('users/' + uid).once('value').then((snapshot) => {
@@ -813,7 +629,7 @@ function loadUserAccount(uid) {
       
       // 立即執行存檔與五連抽
       saveAccountToCloud();
-      showTavernMsg(`🎁 歡迎 ${playerAccount.name}！正在準備初始配件...`);
+      showTavernMsg(`🎁 歡迎 ${playerAccount.name}！正在準備開局五連抽`);
       performFiveUniqueGacha();
     }
 
@@ -827,8 +643,77 @@ function loadUserAccount(uid) {
         uidDisplay.textContent = "身分牌: " + playerAccount.name;
     }
 console.log("🧹 帳號載入流程完成");
+// 每日登入獎勵
+const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+if (playerAccount.lastLoginDate !== today) {
+    playerAccount.gold += 15;
+    playerAccount.lastLoginDate = today;
+    saveAccountToCloud();
+    syncAccountUI();
+    showTavernMsg(`📅 每日登入獎勵 +15 金幣！`, 3000);
+}
+
+// 在所有更新後，嘗試重連
+    attemptReconnect();
   });
 }
+
+function attemptReconnect() {
+  if (!myUID) return;
+  
+  const userRoomRef = db.ref(`users/${myUID}/currentRoom`);
+  userRoomRef.once('value').then((snap) => {
+    const roomInfo = snap.val();
+    if (!roomInfo || !roomInfo.roomId) return; // 沒有記錄
+    
+    const roomId = roomInfo.roomId;
+    const role = roomInfo.role;
+    const lastSeen = roomInfo.lastSeen || 0;
+    const now = Date.now();
+    
+    // 如果最後更新超過 60 秒，視為過期，清除記錄
+    if (now - lastSeen > 60000) {
+      userRoomRef.remove();
+      return;
+    }
+    
+    // 檢查房間是否存在且仍有效
+    db.ref(`rooms/${roomId}`).once('value').then((roomSnap) => {
+      const roomData = roomSnap.val();
+      if (!roomData) {
+        // 房間已被刪除，清除記錄
+        userRoomRef.remove();
+        return;
+      }
+      
+      // 檢查玩家是否仍為該房間的成員（host 或 guest）
+      const isHost = (roomData.host === myUID);
+      const isGuest = (roomData.guest === myUID);
+      if (!isHost && !isGuest) {
+        // 被踢出或房間重設，清除記錄
+        userRoomRef.remove();
+        return;
+      }
+      
+      // 成功：設定全域變數
+      window.roomId = roomId;
+      window.myRole = isHost ? 'host' : 'guest';
+      
+      // 判斷現在是否在戰鬥中
+      if (roomData.battle && roomData.battle.currentTurnPlayer) {
+        // 戰鬥中，直接恢復
+        resumeBattle(roomId, myRole, roomData);
+      } else {
+        // 在大廳中，重新進入大廳
+        enterLobby();
+      }
+      
+      // 顯示提示
+      showTavernMsg('🔄 偵測到未完成的對局，自動連回中...', 3000);
+    });
+  });
+}
+
 // ✨ [優化版] 五連抽邏輯
 function performFiveUniqueGacha() {
   let availableAccs = [...ACCESSORIES];
@@ -879,9 +764,16 @@ function setupPresence(roomId, role) {
   userRoomRef.set({
     roomId: roomId,
     role: role,
-    lastSeen: now
+    lastSeen: now,
+    online: true
   });
-  
+    
+    // 斷線時：只標記離線，不刪除記錄（保留房間資訊）
+  userRoomRef.onDisconnect().update({
+    online: false,
+    lastSeen: Date.now()
+  });
+
   // 2. 房主斷線：整間房間標記為廢棄
   if (role === 'host') {
     roomRef.onDisconnect().update({
@@ -889,35 +781,20 @@ function setupPresence(roomId, role) {
       abandonedAt: Date.now(),
       abandonedBy: 'host'
     });
-    
-    // 額外安全機制：30秒後強制刪除
-    setTimeout(() => {
-      db.ref(`rooms/${roomId}`).once('value').then(snap => {
-        const room = snap.val();
-        // 如果房間還在且狀態是 abandoned 或超過30秒沒更新
-        if (room && (room.status === 'abandoned' || (room.timestamp && Date.now() - room.timestamp > ROOM_TIMEOUT))) {
-          snap.ref.remove();
-        }
-      });
-    }, ROOM_TIMEOUT);
-  } 
+ } 
   // 3. 客人斷線：只清除自己，房間恢復等待
   else {
     const disconnectData = isInBattle
   ? { status: 'abandoned', abandonedAt: Date.now(), abandonedBy: 'guest' }
   : { guest: null, guest_ready: null, guest_loadout: null, status: 'waiting', timestamp: Date.now() };
-roomRef.onDisconnect().update(disconnectData);
-  }
+    roomRef.onDisconnect().update(disconnectData);}
   
-  // 4. 心跳機制：每15秒更新一次存活時間
+   // 心跳機制：每15秒更新存活時間與線上狀態
   if (reconnectTimer) clearInterval(reconnectTimer);
   reconnectTimer = setInterval(() => {
     if (roomId && myUID) {
       db.ref(`rooms/${roomId}`).update({ timestamp: Date.now() });
-      // 加上安全檢查
-      if (myUID) {
-        db.ref(`users/${myUID}/currentRoom/lastSeen`).set(Date.now());
-      }
+      userRoomRef.update({ lastSeen: Date.now(), online: true });
     }
   }, 15000);
 }
@@ -1656,14 +1533,6 @@ function gachaPull() {
         return;
     }
     
-    // 找出所有未擁有的配件
-    const unowned = ACCESSORIES.filter(acc => !playerAccount.warehouse.includes(acc.id));
-    
-    if (unowned.length === 0) {
-        showTavernMsg("🎉 你已經擁有所有配件了！");
-        return;
-    }
-    
     // 扣款
     playerAccount.gold -= cost;
     syncAccountUI();
@@ -1691,9 +1560,9 @@ function gachaPull() {
         let selectedRarity;
         if (rand < 40) selectedRarity = 1;      // 40% ⭐1
         else if (rand < 70) selectedRarity = 2; // 30% ⭐2
-        else if (rand < 85) selectedRarity = 3; // 15% ⭐3
-        else if (rand < 95) selectedRarity = 4; // 10% ⭐4
-        else selectedRarity = 5;                 // 5% ⭐5
+        else if (rand < 87) selectedRarity = 3; // 17% ⭐3
+        else if (rand < 97) selectedRarity = 4; // 10% ⭐4
+        else selectedRarity = 5;                 // 3% ⭐5
         
         // 從所有配件中選出符合稀有度且未擁有的
         const possibleAccs = ACCESSORIES.filter(acc => 
@@ -1720,31 +1589,27 @@ function gachaPull() {
         
         // 根據稀有度決定背景色
         switch(selectedRarity) {
-            case 5: bgColor = 'linear-gradient(135deg, #ffd700, #ffa500)'; break; // 金色
-            case 4: bgColor = 'linear-gradient(135deg, #c0b0ff, #a080ff)'; break; // 紫色
-            case 3: bgColor = 'linear-gradient(135deg, #6b8cff, #4a6aff)'; break; // 藍色
-            case 2: bgColor = 'linear-gradient(135deg, #50c878, #2e8b57)'; break; // 綠色
-            default: bgColor = 'linear-gradient(135deg, #c0c0c0, #a0a0a0)'; break; // 灰色
+            case 5: bgColor = 'linear-gradient(135deg, #ffd700, #ffa500)'; break;
+            case 4: bgColor = 'linear-gradient(135deg, #c0b0ff, #a080ff)'; break;
+            case 3: bgColor = 'linear-gradient(135deg, #6b8cff, #4a6aff)'; break;
+            case 2: bgColor = 'linear-gradient(135deg, #50c878, #2e8b57)'; break;
+            default: bgColor = 'linear-gradient(135deg, #c0c0c0, #a0a0a0)'; break;
         }
         
         if (isDuplicate) {
-            // 抽到重複：根據稀有度獲得不同數量的碎片
+            // 抽到重複：根據稀有度獲得不同數量的碎片（稀有度×2）
             let shardsEarned = 0;
-            
-            // 稀有度對應的碎片數量：1⭐=1片，2⭐=2片，3⭐=3片，4⭐=4片，5⭐=5片
             switch(selectedRarity) {
-                case 5: shardsEarned = 5; break;
-                case 4: shardsEarned = 4; break;
-                case 3: shardsEarned = 3; break;
-                case 2: shardsEarned = 2; break;
-                default: shardsEarned = 1; break;
+                case 5: shardsEarned = 10; break;
+                case 4: shardsEarned = 8; break;
+                case 3: shardsEarned = 6; break;
+                case 2: shardsEarned = 4; break;
+                default: shardsEarned = 2; break;
             }
             
             playerAccount.shards = (playerAccount.shards || 0) + shardsEarned;
             
-            // 顯示星星的符號
             const stars = '★'.repeat(selectedRarity);
-            
             resultHtml = `
                 <div style="background: ${bgColor}; padding: 1rem; border-radius: var(--r-lg); color: var(--ink);">
                     <div style="font-size: 2rem; margin-bottom: 0.5rem;">${wonAcc.icon}</div>
@@ -1756,12 +1621,10 @@ function gachaPull() {
                     </div>
                 </div>
             `;
-            
             showTavernMsg(`獲得造型碎片 x${shardsEarned} 🧩！`);
         } else {
             // 抽到新配件：加入倉庫
             playerAccount.warehouse.push(wonAcc.id);
-            
             resultHtml = `
                 <div style="background: ${bgColor}; padding: 1rem; border-radius: var(--r-lg); color: var(--ink);">
                     <div style="font-size: 2rem; margin-bottom: 0.5rem;">${wonAcc.icon}</div>
@@ -1770,18 +1633,13 @@ function gachaPull() {
                     <div style="color: #2e8b57; font-weight: bold;">✨ 新配件！</div>
                 </div>
             `;
-            
             showTavernMsg(`✨ 恭喜抽到 ${wonAcc.name}！`);
         }
         
-        // 更新顯示
         resultDiv.innerHTML = resultHtml;
-        
-        // 同步 UI
         syncAccountUI();
         saveAccountToCloud();
         
-        // 如果有新配件，更新商店顯示
         if (!isDuplicate) {
             renderShop();
             renderLibrary();
@@ -2104,6 +1962,9 @@ function startPvEBattle() {
     enemyLoadout: enemyLoadout,
   });
   
+  gs.myName = playerAccount.name;
+  gs.enemyName = "電腦";
+
   // 切換到戰鬥畫面
   goTo('battleScreen');
   
@@ -2357,7 +2218,7 @@ console.log(`[${myRole}] 使用配件 ${accId}，bonus=${bonus}`);
    }
    console.log(`[${myRole}] 已发送 useDieOnAcc 动作，bonus=${bonus}`);
   window.UIRender.renderBattle();
-  checkWin();
+  window.GameController.checkWin();
 }
 
 function useCard(type){
@@ -2371,8 +2232,10 @@ function useCard(type){
   gs.pts -= max;
   gs.face = gs.face === 'A' ? 'B' : 'A';
   gs.flipCount = (gs.flipCount || 0) + 1;
+ 
   // ⚡ 觸發翻轉事件，檢查無限翻轉配件
   triggerEvent('playerFlip', 'player', gs.flipCount);
+  triggerEvent('playerUseCard', 'player');
   
   // 聯網模式才需要廣播
   if (!isSinglePlayer && roomId) {
@@ -2392,46 +2255,10 @@ function useCard(type){
     gs.statAtk++;
   } else {
     FX.heal(gs, 'player', 1, "🃏 你發動了行動卡治療");
-    gs.statHeal++;
   }
   
   window.UIRender.renderBattle();
-  checkWin();
-}
-
-function checkWin() {
-  if (gs.isGameOver) return; // 防止重複執行
-
-  let result = null;
-  let reason = 'hp';
-
-  // --- 判定邏輯 (完全依照你提供的配件清單) ---
-  if (gs.dummyHp <= 0) { result = 'dummy'; reason = 'hp'; }
-  else if (gs.hp <= 0) { result = 'lose'; reason = 'hp'; }
-  else if (gs.medalRounds >= 2) { result = 'dummy'; reason = 'medal'; }
-  else if (gs.enemyMedalRounds >= 2) { result = 'lose'; reason = 'medal'; }
- else if (gs.flipCount >= 10) { result = 'dummy'; reason = 'flip'; }
-  else if (gs.enemyFlipCount >= 10) { result = 'lose'; reason = 'flip'; }
-
-  if (result) {
-    gs.isGameOver = true;
-    window.UIRender.renderBattle();
-
-    // 只有當回合發動者負責同步最後一刻的勝負
-    if (isOnlineMode() && myRole === gs.currentTurnPlayer) {
-      syncBattle({ 
-        status: 'game-over', 
-        winner: (result === 'dummy' ? myRole : (myRole === 'host' ? 'guest' : 'host')),
-        reason: reason,
-        hp: gs.hp, 
-        dummyHp: gs.dummyHp,
-        medalRounds: gs.medalRounds,
-        enemyMedalRounds: gs.enemyMedalRounds
-      });
-    }
-    
-    setTimeout(() => endBattle(result), 600);
-  }
+  window.GameController.checkWin();
 }
 
 // ─────────────────────────────────────────
@@ -2532,6 +2359,8 @@ if (!isSinglePlayer && roomId) {
 //  END BATTLE
 // ─────────────────────────────────────────
 function endBattle(reason) {
+    if (window._endBattleCalled) return;
+  window._endBattleCalled = true;
   clearTurnTimer(true);
   // 判斷是什麼模式
   const isPvE = gs && (gs.isPvE === true || gs.isSinglePlayer === true);
@@ -2548,12 +2377,12 @@ function endBattle(reason) {
   // 🛡️ 防刷錢機制：至少要打 3 回合
 if (gs.statTurn >= 3) {
   if (isVictory) {
-    // 勝利固定 5 金幣
-    prize = 5;
+    // 勝利固定 15 金幣
+    prize = 15;
     msg = `💰 戰鬥勝利！獲得 ${prize} 枚金幣。`;
   } else if (reason === 'lose') {
-    // 失敗固定 1 金幣
-    prize = 1;
+    // 失敗固定 5 金幣
+    prize = 5;
     msg = `💀 戰鬥落敗... 獲得 ${prize} 枚金幣當醫藥費。`;
   }
 } else {
@@ -2617,15 +2446,25 @@ if (gs.statTurn >= 3) {
     </div>
   `;
 
-// ⚡ 在結算畫面彈出時，確保環境是安靜的
-  if (isOnlineMode()) {
-    // 我們在這邊才清理 RoomID 和角色資訊，但不執行 goTo
-    // 這樣就不會影響到其他呼叫 cleanupRoom 的地方
+if (isOnlineMode()) {
     const oldRoomId = roomId;
+    const oldRole = myRole;
     roomId = null; 
     myRole = null;
-    // 這裡是為了保險，確保徹底斷開
-    if (oldRoomId) db.ref(`rooms/${oldRoomId}`).off();
+    if (oldRoomId) {
+        globalOff(); // 清除所有 Firebase 監聽器（battle, room等）
+      // ⚡ 直接在這裡刪除，不依賴 cleanupRoom（因為 roomId 已是 null）
+      if (oldRole === 'host') {
+        db.ref(`rooms/${oldRoomId}`).remove();
+      } else {
+        db.ref(`rooms/${oldRoomId}`).update({
+          guest: null, guest_ready: null, guest_loadout: null,
+          status: 'waiting', timestamp: Date.now()
+        });
+      }
+      db.ref(`users/${myUID}/currentRoom`).remove();
+    }
+    if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
   }
 
   goTo('victoryScreen');
@@ -2633,6 +2472,7 @@ if (gs.statTurn >= 3) {
 
 // 這是專門用來清理戰場，準備下一局的函式
 function prepareNewGame() {
+   window._endBattleCalled = false;
     if (roomId && myRole === 'host') {
         // 房主負責把 Firebase 上的戰鬥狀態洗掉
         db.ref(`rooms/${roomId}/battle`).remove();
@@ -2652,6 +2492,18 @@ function prepareNewGame() {
     // 重置本地的所有開關
     isInBattle = false; 
     isReady = false;
+     isReady = false;
+    const readyBtn = document.getElementById('readyBtn');
+    if (readyBtn) {
+        readyBtn.textContent = "✔ 我準備好了";
+        readyBtn.style.background = "";
+        readyBtn.style.color = "";
+        readyBtn.style.boxShadow = "";
+    }
+    const myText = document.getElementById('myReadyText');
+    const myBadge = document.getElementById('myReadyBadge');
+    if (myText) myText.style.display = '';
+    if (myBadge) myBadge.style.display = 'none';
     if (gs) {
         gs.isGameOver = false;
         gs.lastProcessedActionId = null; // 清除動作紀錄
@@ -2781,7 +2633,7 @@ if (gs.enemyPts >= eMax) {
         FX.damage(gs, 'player', 1, "🃏 對手使用行動卡");
     }
     window.UIRender.renderBattle();
-    checkWin();
+    window.GameController.checkWin();
 }
 
   await sleep(1000);
@@ -2840,6 +2692,7 @@ function joinOnlineRoom() {
       // 建立乾淨的新房間
       roomRef.set({
         host: myUID,
+        host_name: playerAccount.name,
         host_loadout: [],
         host_ready: false,
         status: 'waiting',
@@ -2854,39 +2707,59 @@ function joinOnlineRoom() {
       return;
     }
     
-    // ========== 情況2：房間已存在，檢查是否可加入 ==========
-    
-    // 檢查是否為幽靈房間（超過30秒沒更新）
-    const isStale = roomData.timestamp && (now - roomData.timestamp > ROOM_TIMEOUT);
-    const isAbandoned = roomData.status === 'abandoned';
-    
-    if (isStale || isAbandoned) {
-      
-      // 如果是房主本人想重建
-      if (roomData.host === myUID) {
-        // 房主重新接管
-        roomRef.update({
-          status: 'waiting',
-          guest: null,
-          guest_ready: null,
-          guest_loadout: null,
-          timestamp: now,
-          abandonedAt: null
-        }).then(() => {
-          myRole = 'host';
-          setupPresence(roomId, 'host');
-          enterLobby();
-        });
-        return;
-      }
-      
-      // 如果不是房主，且房間廢棄了，就暴力覆蓋
-      roomRef.remove().then(() => {
-        // 重新執行一次自己（遞迴但安全）
-        joinOnlineRoom();
+   // ========== 情況2：房間已存在，檢查是否可加入 ==========
+const isStale = roomData.timestamp && (now - roomData.timestamp > ROOM_TIMEOUT);
+const isAbandoned = roomData.status === 'abandoned';
+
+if (isStale || isAbandoned) {
+  // 如果我是原本的房主 → 重新接管
+  if (roomData.host === myUID) {
+    myRole = 'host';
+    roomRef.update({
+      status: 'waiting',
+      guest: null,
+      guest_ready: null,
+      guest_loadout: null,
+      guest_name: null,
+      timestamp: now,
+      abandonedAt: null
+    }).then(() => {
+      setupPresence(roomId, 'host');
+      enterLobby();
+    });
+    return;
+  }
+  
+  // 如果我是原本的客人 → 嘗試恢復
+  if (roomData.guest === myUID) {
+    myRole = 'guest';
+    // 若戰鬥仍在進行，直接恢復戰鬥
+    if (roomData.battle && roomData.battle.currentTurnPlayer) {
+      resumeBattle(roomId, 'guest', roomData);
+    } else {
+      // 否則恢復大廳狀態
+      roomRef.update({
+        status: 'pre-battle',
+        guest: myUID,
+        guest_name: playerAccount.name,
+        guest_loadout: roomData.guest_loadout || [],
+        guest_ready: roomData.guest_ready || false,
+        timestamp: now,
+        abandonedAt: null
+      }).then(() => {
+        setupPresence(roomId, 'guest');
+        enterLobby();
       });
-      return;
     }
+    return;
+  }
+  
+  // 其他不相干的人 → 刪除房間並重新開始
+  roomRef.remove().then(() => {
+    joinOnlineRoom(); // 遞迴重試（但會變成創建新房間）
+  });
+  return;
+}
     
     // ========== 情況3：檢查是否為本人重連 ==========
     if (roomData.host === myUID) {
@@ -2929,6 +2802,7 @@ function joinOnlineRoom() {
       
       roomRef.update({
         guest: myUID,
+        guest_name: playerAccount.name,
         guest_loadout: [],
         guest_ready: false,
         status: 'pre-battle',
@@ -3005,6 +2879,7 @@ function createQuickMatchWaitingRoom() {
 
   db.ref('rooms/' + roomId).set({
     host: myUID,
+    host_name: playerAccount.name,
     host_loadout: [],
     host_ready: false,
     status: 'waiting',
@@ -3016,34 +2891,50 @@ function createQuickMatchWaitingRoom() {
     setupPresence(roomId, 'host');
     
     // ⚡ 房主專屬：開始盯著這個房間看
-    db.ref('rooms/' + roomId).on('value', (snap) => {
-      const room = snap.val();
-      // 🛡️ 如果發現狀態變成 pre-battle (代表客人進來了)，且我還在匹配中
-      if (room && room.status === 'pre-battle' && isMatching) {
-        cancelMatching(); // 停止轉圈圈
-        enterLobby();    // 房主也跳轉進大廳
-        showTavernMsg('🎉 配對成功！');
-      }
-    });
+   // 使用一个具名函数，方便后面取消监听
+   const waitingListener = (snap) => {
+   const room = snap.val();
+   if (room && room.status === 'pre-battle' && isMatching) {
+    cancelMatching();
+    enterLobby();
+    showTavernMsg('🎉 配對成功！');
+   }
+   };
+   db.ref('rooms/' + roomId).on('value', waitingListener);
+   // 将监听器引用存储起来，以便取消时使用
+   window._waitingListener = waitingListener;
+
+
   });
 }
 
 function cancelMatching() {
   isMatching = false;
-  if (matchingTimer) {
+  
+  // 原有的計時器清理
+  if (typeof matchingTimer !== 'undefined' && matchingTimer) {
     clearInterval(matchingTimer);
     matchingTimer = null;
   }
-  const btn = document.getElementById('quickMatchArea').querySelector('button');
+  // 如果我是房主且正在等待客人，需要移除对房间的监听
+  // 🛡️ 這裡就是你原本的邏輯，我只加了 typeof 防止報錯
+  if (typeof roomId !== 'undefined' && roomId && typeof myRole !== 'undefined' && myRole === 'host' && window._waitingListener) {
+    db.ref('rooms/' + roomId).off('value', window._waitingListener);
+    window._waitingListener = null;
+  }
+
+  // 原有的按鈕 UI 更新 (加上 ? 確保安全)
+  const btn = document.getElementById('quickMatchArea')?.querySelector('button');
   if (btn) btn.textContent = '🎲 快速配對';
+  
   const statusEl = document.getElementById('matchingStatus');
   if (statusEl) statusEl.style.display = 'none';
 }
+
 function findAvailableRoom() {
   if (!isMatching) return;
 
   const now = Date.now();
-  // 🔍 搜尋所有等待中的房間
   db.ref('rooms').orderByChild('status').equalTo('waiting').once('value').then((snapshot) => {
     if (!isMatching) return;
     const rooms = snapshot.val();
@@ -3051,10 +2942,8 @@ function findAvailableRoom() {
 
     if (rooms) {
       for (const [id, data] of Object.entries(rooms)) {
-        // ⚡ 核心修正：除了不是自己、是快速配對、沒人加入外
-        // 必須檢查 timestamp，超過 30 秒沒更新的視為「幽靈房間」，直接跳過
+        // 只考慮活躍房間（30秒內有更新）
         const isAlive = data.timestamp && (now - data.timestamp < 30000);
-        
         if (data.host !== myUID && data.isQuickMatch && !data.guest && isAlive) {
           availableRoomId = id;
           break;
@@ -3063,28 +2952,39 @@ function findAvailableRoom() {
     }
 
     if (availableRoomId) {
-      // ✅ 找到真正的活躍房間：作為客加入
+      // 取消匹配計時（先停止 UI 轉圈）
       cancelMatching();
-      roomId = availableRoomId;
-      myRole = 'guest';
-      
-      // ⚡ 加入時重置對手的準備狀態，確保不會一進去就開始
-      db.ref('rooms/' + roomId).update({
+
+      // 直接以客人身份更新房間（不使用事務）
+      db.ref('rooms/' + availableRoomId).update({
         guest: myUID,
+        guest_name: playerAccount.name,
         guest_loadout: [],
         guest_ready: false,
-        host_ready: false, // 👈 強制房主重新準備，防止幽靈留存
+        host_ready: false,        // 強制房主重新準備
         status: 'pre-battle',
         timestamp: Date.now()
       }).then(() => {
+        // 成功加入，設定角色並進入大廳
+        roomId = availableRoomId;
+        myRole = 'guest';
         setupPresence(roomId, 'guest');
         enterLobby();
         showTavernMsg('🎉 配對成功！');
+      }).catch(err => {
+        console.error('加入房間失敗:', err);
+        showTavernMsg('加入房間失敗，請重試');
+        // 確保匹配狀態被重置（雖然 cancelMatching 已調用，但可能因錯誤需要再次確認）
+        cancelMatching();
       });
     } else {
-      // ❌ 沒房可加：自己開一桌
-      createQuickMatchWaitingRoom(); 
+      // 沒有可用房間：自己開一間等待
+      createQuickMatchWaitingRoom();
     }
+  }).catch(err => {
+    console.error('查找房間失敗:', err);
+    showTavernMsg('酒館傳送陣不穩定，請重試');
+    cancelMatching();
   });
 }
 
@@ -3115,16 +3015,27 @@ function createQuickMatchRoom() {
 // 進入大廳的輔助函式
 function enterLobby() {
   document.getElementById('displayRoomId').textContent = roomId;
-  loadout = []; // 清空暫存裝備
+  loadout = [];
+  isReady = false;
+  // ⚡ 還原準備按鈕外觀
+  const readyBtn = document.getElementById('readyBtn');
+  if (readyBtn) {
+    readyBtn.textContent = "✔ 我準備好了";
+    readyBtn.style.background = "";
+    readyBtn.style.color = "";
+    readyBtn.style.boxShadow = "";
+  }
+  const myText = document.getElementById('myReadyText');
+  const myBadge = document.getElementById('myReadyBadge');
+  if (myText) myText.style.display = '';
+  if (myBadge) myBadge.style.display = 'none';
   renderLobbyAccs();
   goTo('lobbyScreen');
-  
+
   // 開始監聽房間變化
   db.ref('rooms/' + roomId).on('value', (snapshot) => {
     const roomData = snapshot.val();
     if (!roomData) {
-      // 房間被刪除了（可能是房主斷線或超時）
-      // alert("房間已關閉，返回酒館大廳");
       showTavernMsg("房間已關閉，返回酒館大廳");
       goTo('tavernDoorScreen');
       return;
@@ -3292,6 +3203,25 @@ function updateLobbyUI(roomData) {
   const opponentRole = (myRole === 'host') ? 'guest' : 'host';
   const enemyLoadout = roomData[`${opponentRole}_loadout`] || [];
   const enemyIsReady = roomData[`${opponentRole}_ready`] || false;
+   // 更新自己的名稱
+  const myNameEl = document.getElementById('myLobbyName');
+  if (myNameEl) myNameEl.textContent = playerAccount.name || "冒險者";
+
+  // 更新對手名稱
+const enemyNameEl = document.getElementById('enemyLobbyName');
+if (enemyNameEl) {
+  const opponentRole = (myRole === 'host') ? 'guest' : 'host';
+  // ✅ 檢查對手是否存在（如果是 guest 角色，要檢查 roomData.guest 是否存在）
+  const opponentExists = opponentRole === 'guest' 
+    ? (roomData.guest !== null && roomData.guest !== undefined)
+    : (roomData.host !== null && roomData.host !== undefined);
+  
+  if (opponentExists) {
+    enemyNameEl.textContent = roomData[`${opponentRole}_name`] || "對手";
+  } else {
+    enemyNameEl.textContent = "等待中...";
+  }
+}
   
   // 1. 渲染對手的盲選格子
   const enemyBox = document.getElementById('enemyLobbySlots');
@@ -3323,25 +3253,30 @@ if (enemyText && enemyBadge) {
   }
 }
 
-  const statusEl = document.getElementById('enemyReadyStatus');
-  if(statusEl) {
-    statusEl.textContent = enemyIsReady ? "🔴 對手已就緒！" : "對方選填中...";
-    statusEl.style.color = enemyIsReady ? "var(--gold-lt)" : "var(--parch-dim)";
-  }
-  
 
   // ⚡ 2. 關鍵修正：加上 !isInBattle 判斷
   const myReady = roomData[`${myRole}_ready`];
   if (myReady && enemyIsReady && !isInBattle) {
-    
-    // 🔒 立即把開關鎖上，防止 Firebase 下一次同步又跑進來
-    isInBattle = true; 
-    
-    gs.enemyLoadout = enemyLoadout; 
-    
-    setTimeout(() => {
-      startOnlineBattle(); 
-    }, 1500);
+  // 先锁定，防止重复触发
+  isInBattle = true;
+  gs.enemyLoadout = enemyLoadout;
+  // 延迟1.5秒，但延迟结束后再检查一次双方准备状态
+  setTimeout(() => {
+    // 重新从 Firebase 读取最新的房间数据，确认双方仍然准备就绪
+    db.ref('rooms/' + roomId).once('value').then(snap => {
+      const room = snap.val();
+      if (room && room[`${myRole}_ready`] && room[`${opponentRole}_ready`]) {
+        startOnlineBattle(room);
+      } else {
+        // 有人取消准备了，解锁状态
+        isInBattle = false;
+        showTavernMsg("對手取消了準備，等待中...");
+      }
+    }).catch(err => {
+      console.error("检查准备状态失败:", err);
+      isInBattle = false;
+    });
+  }, 1500);
   }
 }
 
@@ -3454,66 +3389,82 @@ if (snap) {
    window.UIRender.log('⚠️ 提示：配件儲能進度已盡力還原，若有遺失請重新投入骰子。', 'system');
   }
 
+   // 設定名稱
+  gs.myName = playerAccount.name;
+  gs.enemyName = (resumeRole === 'host' ? roomData.guest_name : roomData.host_name) || "對手";
+
+
   window.UIRender.renderBattle();
   lockControlsIfNotMyTurn();
   listenToBattleActions();
   showTavernMsg('⚔️ 重新連線成功！');
   }
-
- function startOnlineBattle() {
-
-   // ⚡ 保護：如果沒有 roomId 或角色，就不該開始戰鬥
+function startOnlineBattle(roomData) {
   if (!roomId || !myRole) {
     console.error("❌ 嘗試開始戰鬥但房間資訊遺失");
     goTo('tavernDoorScreen');
     return;
   }
 
-  // ⚡ 新增：清空上局殘留動作，防止幽靈勝利
-  db.ref(`rooms/${roomId}/battle/lastAction`).remove();
+  // 從 roomData 取得雙方名稱與裝備
+  const myName = playerAccount.name;
+  const enemyName = myRole === 'host' ? roomData.guest_name : roomData.host_name;
+  const enemyLoadout = myRole === 'host' ? (roomData.guest_loadout || []) : (roomData.host_loadout || []);
 
-  // 移除大廳的房間監聽，避免戰鬥中被意外觸發
+  // 1. 🛡️ 移除大廳監聽，確保戰鬥環境純淨
   db.ref('rooms/' + roomId).off();
 
-  // 記錄玩家正在戰鬥中，方便斷線後提示
-  db.ref(`users/${myUID}/currentRoom`).update({ wasInBattle: true });
-
-   // 房主負責把房間狀態更新為戰鬥中（只需要一方寫入）
+  // 2. 🧹 雲端數據掃除（房主初始化 battle 節點）
   if (myRole === 'host') {
-    db.ref(`rooms/${roomId}`).update({
+    db.ref(`rooms/${roomId}/battle`).set({
       status: 'battle',
+      currentTurnPlayer: 'host',
+      turnCount: 1,
+      lastAction: null,
+      lastDice: null,
       timestamp: Date.now()
     });
+  } else {
+    db.ref(`rooms/${roomId}/battle/lastAction`).remove();
   }
 
+  // 3. 📡 紀錄玩家戰鬥狀態（供斷線重連用）
+  db.ref(`users/${myUID}/currentRoom`).update({ wasInBattle: true });
 
-  // 1. 初始化戰鬥狀態 (聯網版)
-  // 注意：先存下對手的配件列表，因為 createBattleState 會覆寫 gs
-  const savedEnemyLoadout = [...gs.enemyLoadout];
+  // 4. 🏗️ 建立戰鬥狀態（只建立一次！）
   gs = createBattleState({
     isSinglePlayer: false,
     loadout: [...loadout],
-    enemyLoadout: savedEnemyLoadout,
+    enemyLoadout: enemyLoadout,          // 直接使用從 roomData 取得的對手裝備
     currentTurnPlayer: 'host',
   });
 
-  // 2. 切換到戰鬥畫面
+  // 5. ✨ 設定雙方名稱（關鍵修正）
+  gs.myName = myName;
+  gs.enemyName = enemyName || "對手";
+
+  // 6. 🚫 重置追蹤 ID
+  gs.lastProcessedActionId = null;
+  gs.diceActionId = null;
+  gs.isGameOver = false;
+
+  // 7. 🖼️ 切換畫面
   goTo('battleScreen');
   window.UIRender.log("⚔️ PVP對決開始！房主先攻。", "system");
-
-  // 3. 渲染畫面
   window.UIRender.renderBattle();
 
-  // 4. ⚡ 核心：如果是 guest，鎖死操作
+  // 8. 🔒 權限鎖定與啟動監聽
   lockControlsIfNotMyTurn();
-  
-  // 5. ⚡ 開始監聽戰鬥中的所有動作
   listenToBattleActions();
 }
 
 
 // 戰鬥動作接收器：負責把雲端的資料「變」到你的螢幕上
 function listenToBattleActions() {
+
+  let lastGuestPresent = null;  // 記錄上一次 guest 是否存在
+  let lastStatus = null;        // 記錄上一次房間狀態
+
   if (!roomId) return;
   const battleRef = db.ref(`rooms/${roomId}/battle`);
   
@@ -3525,21 +3476,28 @@ function listenToBattleActions() {
   // 監聽房間根目錄（判斷對手是否斷線）
   const roomRootRef = db.ref(`rooms/${roomId}`);
   roomRootRef.on('value', (snap) => {
-    const room = snap.val();
-    // 如果遊戲結束或不在戰鬥中，就不執行斷線判定
-    if (!room || !isInBattle || (gs && gs.isGameOver)) return;
+  const room = snap.val();
+  if (!room || !isInBattle || (gs && gs.isGameOver)) return;
 
-    // 1. 判定對手當前是否在線上
-    const opponentLeft = myRole === 'host' ? !room.guest : room.status === 'abandoned';
-    const opponentBack = myRole === 'host' ? !!room.guest : room.status === 'battle';
+  // 初始化上次狀態（僅第一次執行）
+  if (lastGuestPresent === null) {
+    lastGuestPresent = myRole === 'host' ? !!room.guest : true; // 房主關心 guest，客人永遠有 host
+    lastStatus = room.status;
+  }
 
-    // 2. 處理「對手離開」
-    if (opponentLeft) {
-      opponentWasDisconnected = true; // 記住對手斷線了
-      
-      // 避免重複顯示提示
+  // 當前狀態
+  const guestPresentNow = !!room.guest;
+  const statusNow = room.status;
+
+  // ---- 斷線檢測（觸發 60 秒倒數） ----
+  const opponentLeft = myRole === 'host' ? !room.guest : room.status === 'abandoned';
+  if (opponentLeft) {
+    // 如果尚未啟動倒數，才啟動（避免重複）
+    if (!window._disconnectTimer) {
+      opponentWasDisconnected = true; // 仍可用於倒數，但不影響提示
+
+      // 這裡放你原本的 60 秒倒數程式碼（保持不變）
       if (document.getElementById('disconnectMsg')) return;
-
       let countdown = 60;
       const container = document.getElementById('toast-container');
       if (container) {
@@ -3549,15 +3507,11 @@ function listenToBattleActions() {
         el.style.background = 'linear-gradient(135deg, #5a3e1b 0%, #8b5e2a 100%)';
         el.innerHTML = `📡 對手斷線了<br>${countdown} 秒後判對手負`;
         container.appendChild(el);
-
-        // 啟動倒數計時器
         if (window._disconnectTimer) clearInterval(window._disconnectTimer);
         window._disconnectTimer = setInterval(() => {
           countdown--;
           const msgEl = document.getElementById('disconnectMsg');
-          if (msgEl) {
-            msgEl.innerHTML = `📡 對手斷線了<br>${countdown} 秒後判對手負`;
-          }
+          if (msgEl) msgEl.innerHTML = `📡 對手斷線了<br>${countdown} 秒後判對手負`;
           if (countdown <= 0) {
             clearInterval(window._disconnectTimer);
             db.ref(`rooms/${roomId}/battle`).update({
@@ -3568,68 +3522,73 @@ function listenToBattleActions() {
           }
         }, 1000);
       }
-    } 
-    // 3. 處理「對手回來」
-    else if (opponentBack) {
-      // 只有當「剛才真的有斷線」時，才執行恢復邏輯
-      if (opponentWasDisconnected) {
-        opponentWasDisconnected = false; // 重置標記，防止狂跳通知
-        
-        // 清除計時器與訊息
-        if (window._disconnectTimer) {
-          clearInterval(window._disconnectTimer);
-          window._disconnectTimer = null;
-        }
-        const oldMsg = document.getElementById('disconnectMsg');
-        if (oldMsg) oldMsg.remove();
-        
-        // 顯示通知並同步畫面
-        showTavernMsg('✅ 對手已重新連線！', 3000);
-        if (typeof renderBattle === 'function') window.UIRender.renderBattle();
-      }
     }
-  });
-
-battleRef.on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (!data) return;
-    
-   
-    // ⚡ 核心修正 1：接收對手的計時器同步
-if (data.currentTurnPlayer !== myRole) {
-    // 對手回合：同步對手時間
-    gs.opponentTime = data.remoteCountdown;
-  } else {
-    // 我的回合：清空對手時間數據
-    gs.opponentTime = undefined;
   }
 
-   // A. 判定勝負
-// A. 判定勝負 (約 5980 行)
-if (data.status === 'game-over') {
-  // ⚡ 核心攔截：如果我已經在處理結算了（例如我剛剛按了投降），直接報廢這條重複指令
-  if (gs && gs.isGameOver) return; 
+  // ---- 重連檢測（基於狀態變化） ----
+  let reconnected = false;
+  if (myRole === 'host') {
+    // 房主：上次 guest 不存在，現在存在 → 客人重連
+    if (lastGuestPresent === false && guestPresentNow === true) {
+      reconnected = true;
+    }
+  } else {
+    // 客人：上次房間是 abandoned，現在是 battle → 房主重連
+    if (lastStatus === 'abandoned' && statusNow === 'battle') {
+      reconnected = true;
+    }
+  }
 
-  gs.isGameOver = true; // 正式鎖定狀態
-  battleRef.off();
-  clearTurnTimer(true);
+  if (reconnected) {
+    // 清除倒數計時器與訊息
+    if (window._disconnectTimer) {
+      clearInterval(window._disconnectTimer);
+      window._disconnectTimer = null;
+    }
+    const oldMsg = document.getElementById('disconnectMsg');
+    if (oldMsg) oldMsg.remove();
 
-  const winner = data.winner;
-  const reason = data.reason; 
-  const isTimeout = data.loserReason === 'timeout';
+    // 顯示重連提示（無論是否曾經斷線，只要有狀態變化就顯示）
+    showTavernMsg('✅ 對手已重新連線！', 3000);
 
-  // 贏家端通知
-  if (winner === myRole) {
+    // 重置 opponentWasDisconnected，避免後續誤判（可選）
+    opponentWasDisconnected = false;
+  }
+
+  // 更新上次狀態
+  lastGuestPresent = guestPresentNow;
+  lastStatus = statusNow;
+});
+
+    battleRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (!data || (gs && gs.isGameOver)) return; // ⚡ 修正：遊戲結束就不再處理任何數據變動
+    
+       // A. 判定勝負
+    if (data.status === 'game-over') {
+    // ⚡ 核心攔截：如果我已經在處理結算了（例如我剛剛按了投降），直接報廢這條重複指令
+    if (gs && gs.isGameOver) return; 
+
+    gs.isGameOver = true; // 正式鎖定狀態
+    battleRef.off();
+    clearTurnTimer(true);
+
+    const winner = data.winner;
+    const reason = data.reason; 
+    const isTimeout = data.loserReason === 'timeout';
+
+    // 贏家端通知
+    if (winner === myRole) {
     if (reason === 'surrender') showTavernMsg('🏳️ 對手已投降！你獲得了勝利', 5000);
     else if (reason === 'medal') showTavernMsg('🏅 對手達成特殊勝利：榮譽獎章！', 5000);
     else if (reason === 'flip') showTavernMsg('🔄 對手達成特殊勝利：無限翻轉！', 5000);
     else if (isTimeout) showTavernMsg('⏰ 對手回合超時兩次，判你獲勝！', 4000);
     else showTavernMsg('🎉 你贏得了戰鬥！');
-  } else {
+    } else {
     if (isTimeout) showTavernMsg('⏰ 你回合超時兩次，判定落敗！', 4000);
-  }
+    }
 
-  setTimeout(() => {
+    setTimeout(() => {
     // 只有「被動接收方」或「非投降輸家」會走這條路
     if (winner === myRole) {
       if (reason === 'surrender') endBattle('surrender-win');
@@ -3641,9 +3600,34 @@ if (data.status === 'game-over') {
       else if (reason === 'flip') endBattle('flip-loss');
       else endBattle('lose');
     }
-  }, 2000);
-  return;
-}
+    }, 2000);
+    return;
+    }
+
+
+    // ⚡ 【優先處理動作】。先看對手做了什麼，再判斷輸贏
+    if (data.lastAction) {
+      const act = data.lastAction;
+      if (act.actionId !== gs.lastProcessedActionId) {
+        gs.lastProcessedActionId = act.actionId;
+        if (act.actor !== myRole) {
+          window.BattleCommander.dispatch(act); 
+          // 執行完動作後，給予一點時間更新 gs 狀態再往下走
+        }
+      }
+    }
+
+   
+    // ⚡ 核心修正 1：接收對手的計時器同步
+    if (data.currentTurnPlayer !== myRole) {
+    // 對手回合：同步對手時間
+    gs.opponentTime = data.remoteCountdown;
+    } else {
+    // 我的回合：清空對手時間數據
+    gs.opponentTime = undefined;
+    }
+
+
 
     // B. 骰子同步 (確保點數變換與被動觸發)
     if (data.lastDice) {
@@ -3663,8 +3647,11 @@ if (data.status === 'game-over') {
       }
       gs.rolled = true;
       gs.phase = 'action';
-    } else {
-      // ⚡ 新回合開始：清空畫面與冷卻清單
+      } else if (data.currentTurnPlayer && data.currentTurnPlayer !== gs.currentTurnPlayer) {
+      // 🛡️ 關鍵：只有在「真正換人」的時候才清空骰子
+    // 如果只是 lastDice 暫時消失，但 currentTurnPlayer 沒變，代表可能還在處理配件效果
+
+        // ⚡ 新回合開始：清空畫面與冷卻清單
       gs.rolled = false;
       gs.phase = 'roll';
       gs.dice = []; 
@@ -3673,17 +3660,7 @@ if (data.status === 'game-over') {
       window.UIRender.renderBattle(); // 👈 重新渲染畫面
     }
 
-   // C. ⚡ 聯網動作分發 (簡潔版)
-    if (data.lastAction) {
-      const act = data.lastAction;
-      if (act.actionId !== gs.lastProcessedActionId) {
-        gs.lastProcessedActionId = act.actionId;
-        if (act.actor !== myRole) {
-          // 🚂 讓指揮部處理一切，它是專業的
-          BattleCommander.dispatch(act); 
-        }
-      }
-    }
+ 
     // E. 命運干擾同步：對手設定給我的 nextDie
     if (data.enemyNextDie !== undefined) {
       gs.playerNextDie = data.enemyNextDie;
@@ -3754,6 +3731,7 @@ function cleanupRoom(msg) {
         guest: null,
         guest_ready: null,
         guest_loadout: null,
+          guest_name: null,  
         status: 'waiting',
         timestamp: Date.now()
       });
