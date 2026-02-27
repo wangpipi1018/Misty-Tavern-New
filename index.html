@@ -54,9 +54,9 @@
         <span style="font-size: 1.2rem;">🍺</span> 訪客登入
       </button>
       
-      <!-- 冒險者登入（未來可擴充） -->
-      <button class="btn-enter" onclick="loginAsAdventurer()" style="width: 220px; background: linear-gradient(135deg, var(--jade) 0%, var(--jade-lt) 100%); display: flex; align-items: center; justify-content: center; gap: 8px;">
-        <span style="font-size: 1.2rem;">⚔️</span> 冒險者登入
+      <!-- Google 登入（ -->
+      <button class="btn-enter" onclick="loginWithGoogle()" style="width: 220px; background: linear-gradient(135deg, #db4437 0%, #c5382b 100%); display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <span style="font-size: 1.2rem;">📧</span> Google 登入
       </button>
     </div>
 
@@ -65,6 +65,7 @@
       <button class="btn-enter" onclick="continueJourney()" style="width: 220px; background: linear-gradient(135deg, var(--gold-dk) 0%, var(--gold) 100%); display: flex; align-items: center; justify-content: center; gap: 8px;">
         <span style="font-size: 1.2rem;">🗺️</span> 推開酒館大門
       </button>
+      <button class="btn-back" onclick="logout()" style="width: 220px; margin-top: 10px;">🔓 切換帳號</button>
     </div>
 
     <!-- 查看規則（保持原樣，永遠顯示） -->
@@ -521,11 +522,10 @@ function loginAsGuest() {
   loginToTavern();  // 直接使用原本的匿名登入
 }
 
-// 冒險者登入（未來可擴充為 email/密碼）
-function loginAsAdventurer() {
-  showTavernMsg("🛠️ 冒險者登入開發中，請先用訪客登入", 3000);
-  // 未來可以加入：
-  // auth.signInWithEmailAndPassword(email, password)
+// Google 登入
+function loginWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithRedirect(provider);
 }
 
 // 繼續旅程（如果已登入）
@@ -535,6 +535,17 @@ function continueJourney() {
   } else {
     showTavernMsg("🔑 請先登入再繼續旅程", 3000);
   }
+}
+
+// 登出
+function logout() {
+  auth.signOut().then(() => {
+    // 登出成功後，onAuthStateChanged 會自動隱藏 afterLoginButtons、顯示 loginButtons
+    showTavernMsg('👋 已登出，歡迎再次光臨！');
+    goTo('tavernDoorScreen'); // 確保回到酒館大門畫面
+  }).catch((error) => {
+    showTavernMsg(`❌ 登出失敗：${error.message}`);
+  });
 }
 
 auth.onAuthStateChanged((user) => {
@@ -3838,6 +3849,16 @@ function lockControlsIfNotMyTurn() {
 }
 // 執行初始頁面（酒館大門）
 goTo('tavernDoorScreen');
+// 處理 Google 重定向登入結果
+auth.getRedirectResult().then((result) => {
+  if (result.user) {
+    const displayName = result.user.displayName || "冒險者";
+    showTavernMsg(`🍻 歡迎，${displayName}！`);
+  }
+}).catch((error) => {
+  let errorMsg = error.message;
+  showTavernMsg(`❌ Google 登入失敗：${errorMsg}`);
+});
 
 // 顯示改名彈出視窗
 function showRenamePopup() {
