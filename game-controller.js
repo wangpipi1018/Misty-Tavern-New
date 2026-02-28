@@ -147,7 +147,9 @@ window.BattleCommander = {
       }
       window.UIRender.log(`📡 對手未使用的能量已消散`, 'system');
      },
-},
+
+
+
 // 在 BattleCommander.actions 对象内（约在 BattleCommander 定义处）
 steal: (act) => {
     const amount = act.amount;
@@ -189,6 +191,8 @@ revive: (act) => {
         window.UIRender.log(`📡 對手的不死鳥羽毛發動，${who === 'player' ? '你' : '对手'} 复活了！`, 'spec');
     }
     window.UIRender.renderBattle();
+},
+
 },
   // 接收總調度：外部只要傳入 act，我會自動找對應的 actions 執行
 dispatch: (act) => {
