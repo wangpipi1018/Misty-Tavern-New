@@ -1047,6 +1047,12 @@ function triggerEvent(event, actor = 'player', ...args) {
   });
 }
 
+
+//  不需要判斷模式，因為你的架構裡 player 永遠代表「我自己」，enemy 永遠代表「對手」，單機和聯網都一樣
+function isLocalTarget(target) {
+  return target === 'player';
+}
+
 // 🛡️ 聯網對戰架構：通用的帳本清理函式
 function clearAllLedgers() {
   if (!gs || !gs.playerStored || !gs.enemyStored) return;

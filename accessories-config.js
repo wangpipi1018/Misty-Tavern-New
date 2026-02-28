@@ -188,7 +188,7 @@ window.ACCESSORIES = [
     req: '受傷時',
     desc: '每受到 1 點傷害，偷取對手 6 點行動卡點數。',
     on: {
-      playerTakeDamage: (gs, victim, dmg) => FX.stealPts(gs, victim, dmg * 6, "🛡️ 荊棘反甲")
+     playerTakeDamage: (gs, victim, dmg) => FX.stealPts(gs, victim, dmg * 6, "🛡️ 荊棘反甲")
     }
   },
   {

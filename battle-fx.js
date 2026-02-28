@@ -37,13 +37,14 @@ stealPts: (gs, who, n, label = "奪取") => {
     if (who === 'player') gs.pts += stolen; else gs.enemyPts += stolen;
 
     // ⚡ 聯網同步：如果是「我被打」觸發了反甲，廣播這個偷取事件
-   if (window.isOnlineMode && window.isOnlineMode() && window.syncBattleAction) {
-        window.syncBattleAction({ 
-            type: 'steal', 
-            actor: window.myRole,
-            victim: from, // 告訴對方誰是被偷的那一方
-            amount: stolen 
-        });
+   // 改後：只有被偷的是我自己時才廣播
+    if (window.isOnlineMode && window.isOnlineMode() && window.syncBattleAction && from === 'enemy') {
+    window.syncBattleAction({ 
+    type: 'steal', 
+    actor: window.myRole,
+    victim: window.myRole,  // 「我自己」被偷了，傳我的角色名稱
+    amount: stolen 
+    });
     }
 
     if (window.UIRender) {
@@ -82,9 +83,10 @@ stealPts: (gs, who, n, label = "奪取") => {
 
 
   // 反甲：只在「我被打」時觸發，不在「我打對手」時觸發
-    if (window.triggerEvent) {
-      window.triggerEvent('playerTakeDamage', target, n);
-    }
+   // 改後
+   if (window.triggerEvent && window.isLocalTarget(target)) {
+   window.triggerEvent('playerTakeDamage', target, n);
+   }
 
     // 死亡判定（移除守衛，讓兩端都能正確判定不死鳥）
     const currentHp = (target === 'player') ? gs.hp : gs.dummyHp;
@@ -99,8 +101,8 @@ stealPts: (gs, who, n, label = "奪取") => {
       });
     if (saved) {
             // ⚡ 聯網同步：如果是「我復活了」，廣播復活事件確保對手畫面同步
-            if (window.isOnlineMode && window.isOnlineMode() && target === 'player') {
-                window.syncBattleAction({ type: 'revive', who: 'player' });
+            if (window.isOnlineMode && window.isOnlineMode() && window.isLocalTarget(target)) {
+            window.syncBattleAction({ type: 'revive', who: window.myRole });
             }
             window.FX.notify();
             return;

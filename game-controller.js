@@ -99,8 +99,8 @@ window.BattleCommander = {
 
         // 触发对手的翻片事件（例如能量风暴）
         triggerEvent('playerFlip', 'enemy', gs.enemyFlipCount);
-        triggerEvent('playerUseCard', 'player');
-    }
+        triggerEvent('playerUseCard', 'enemy');
+       }
 
     // 2. 执行伤害/治疗（会触发反甲、不死鸟等广播）
     if (act.cardType === 'atk') {
@@ -153,39 +153,36 @@ window.BattleCommander = {
 // 在 BattleCommander.actions 对象内（约在 BattleCommander 定义处）
 steal: (act) => {
     const amount = act.amount;
-   // 既然是收到廣播，代表是對手發動了偷取，victim 欄位標記的是受害者角色
-    if (act.victim === 'player') {
-        // 發送者說 player(他眼中的我) 被偷了 -> 我的點數減少，對手點數增加
-        gs.pts = Math.max(0, (gs.pts || 0) - amount);
-        gs.enemyPts = (gs.enemyPts || 0) + amount;
-        if (window.UIRender) {
-            window.UIRender.log(`📡 對手反甲奪取了你 ${amount} 點能量！`, 'bad');
-            window.UIRender.floatAt(`-${amount}`, document.getElementById('myCard'), 'pts');
-        }
-    } else {
-        // 發送者說 enemy(他眼中的對手) 被偷了 -> 對手點數減少，我的點數增加
+    if (act.victim === window.myRole) {
+        // 廣播者說「我被偷了」→ 對我來說「對手被偷了，我獲益」
         gs.enemyPts = Math.max(0, (gs.enemyPts || 0) - amount);
         gs.pts = (gs.pts || 0) + amount;
         if (window.UIRender) {
             window.UIRender.log(`📡 你的反甲奪取了對手 ${amount} 點能量！`, 'good');
             window.UIRender.floatAt(`+${amount}`, document.getElementById('myCard'), 'pts');
         }
+    } else {
+        // 廣播者說「對手被偷了」→ 對我來說「我被偷了」
+        gs.pts = Math.max(0, (gs.pts || 0) - amount);
+        gs.enemyPts = (gs.enemyPts || 0) + amount;
+        if (window.UIRender) {
+            window.UIRender.log(`📡 對手反甲奪取了你 ${amount} 點能量！`, 'bad');
+            window.UIRender.floatAt(`-${amount}`, document.getElementById('myCard'), 'pts');
+        }
     }
-    
-    // ⚡ 立即更新 UI，點數不夠時會立刻禁用攻擊按鈕，防止二次攻擊
     if (window.UIRender) {
-        window.UIRender.updateCtrl(); 
+        window.UIRender.updateCtrl();
         window.UIRender.renderBattle();
     }
 },
 revive: (act) => {
     const who = act.who;
-    if (who === 'player') {
-        gs.hp = 1;
-        gs.playerPhoenixUsed = true;
+    if (act.who === window.myRole) {
+    gs.hp = 1;
+    gs.playerPhoenixUsed = true;
     } else {
-        gs.dummyHp = 1;
-        gs.enemyPhoenixUsed = true;
+    gs.dummyHp = 1;
+    gs.enemyPhoenixUsed = true;
     }
     if (window.UIRender) {
         window.UIRender.log(`📡 對手的不死鳥羽毛發動，${who === 'player' ? '你' : '对手'} 复活了！`, 'spec');
